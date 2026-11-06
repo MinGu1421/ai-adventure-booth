@@ -95,7 +95,7 @@ function DogStage1() {
     for (const o of obs) {
       if (o.hit) continue; const b = box2(o);
       if (hb.x < b.x + b.w && hb.x + hb.w > b.x && hb.y < b.y + b.h && hb.y + hb.h > b.y && inv <= 0) {
-        o.hit = true; hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver()); return; }
+        o.hit = true; hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('주인을 찾지 못했어요.')); return; }
       }
     }
     const dp = PEND - (x + DX);
@@ -187,7 +187,7 @@ function DogAfter1() {
   ], () => DogStage2());
 }
 function DogStage2() {
-  return Stairs({
+  return Stairs({ overMsg: '주인을 찾지 못했어요.',
     title: '2 스테이지 · 회사 계단 오르기', hero: [SPR.dog[0], SPR.dog[1]], heroOff: [10, 16], bg: bgStairwell, stepCol: ['#9aa4a0', '#6a7470'], turnClimbs: true,
     controls: [['A', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기'], ['D', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기']],
     onClear: () => DogAfter2(),

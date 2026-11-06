@@ -217,7 +217,7 @@ function DogStage5() {
     if (dx && !solid(px + dx + Math.sign(dx) * r, py - r + 1) && !solid(px + dx + Math.sign(dx) * r, py + r - 1)) px += dx;
     if (dy && !solid(px - r + 1, py + dy + Math.sign(dy) * r) && !solid(px + r - 1, py + dy + Math.sign(dy) * r)) py += dy;
     ft -= dt; if (ft <= 0) { ft = rnd(0.7, 1.3); const a = Math.random() * Math.PI * 2, d = rnd(0, 50); fall.push({ x: px + Math.cos(a) * d + Math.cos(face) * 30, y: py + Math.sin(a) * d + Math.sin(face) * 30, t: 0, k: irnd(0, 2) }); }
-    for (const f of fall) { f.t += dt; if (f.t >= 1.1 && !f.land) { f.land = true; noise(0.2, 0.15, 500); if (Math.hypot(f.x - px, f.y - py) < 16 && inv <= 0) { hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver()); return; } } } }
+    for (const f of fall) { f.t += dt; if (f.t >= 1.1 && !f.land) { f.land = true; noise(0.2, 0.15, 500); if (Math.hypot(f.x - px, f.y - py) < 16 && inv <= 0) { hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('주인을 찾지 못했어요.')); return; } } } }
     fall = fall.filter(f => f.t < 2.2);
     if (Math.floor(px / TS) === goal[0] && Math.floor(py / TS) === goal[1]) { mode = 'clear'; SFX.clear(); }
   };

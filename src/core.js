@@ -193,8 +193,8 @@ function Notice(title, body, next, opt) {
   return S;
 }
 
-function GameOver() {
-  return Notice('하트를 모두 잃었어요', '메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' });
+function GameOver(msg) {
+  return Notice(msg || '하트를 모두 잃었어요', '메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' });
 }
 
 // 엔딩 화면 + 리셋 버튼

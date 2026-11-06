@@ -36,7 +36,7 @@ function Stairs(cfg) {
     const tx = steps[idx] * SW, ty = -idx * SH;
     if (mode !== 'fall') { camX = lerp(camX, tx, Math.min(1, dt * 10)); camY = lerp(camY, ty, Math.min(1, dt * 10)); }
     if (mode === 'play' && started) { gauge -= diff.drain * (1 + idx / diff.goal * 0.7) * dt; if (gauge <= 0) { gauge = 0; fall(); } }
-    if (mode === 'fall') { ft += dt; if (ft > 1.3) { hearts--; shake = 0.6; if (hearts <= 0) { mode = 'over'; go(GameOver()); } else { mode = 'retry'; ft = 0; } } }
+    if (mode === 'fall') { ft += dt; if (ft > 1.3) { hearts--; shake = 0.6; if (hearts <= 0) { mode = 'over'; go(GameOver(cfg.overMsg)); } else { mode = 'retry'; ft = 0; } } }
     else if (mode === 'retry') { ft += dt; if (ft > 1.6) build(); }
     else if (mode === 'clear') { ft += dt; if (ft > 1.8) { mode = 'done'; go(cfg.onClear()); } }
   };

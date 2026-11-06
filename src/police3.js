@@ -116,7 +116,7 @@ function PoliceStage3() {
   S.enter = setup;
   S.update = dt => {
     modeT += dt;
-    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('경찰에게 5번 잡혔어요', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); mode = 'play'; modeT = 0; } return; }
+    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('이런, 경찰에게 체포당했어요.', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); mode = 'play'; modeT = 0; } return; }
     if (mode === 'clear') { if (modeT > 1.5) { mode = 'done'; go(PoliceEnding()); } return; }
     if (mode !== 'play') return;
     // 플레이어

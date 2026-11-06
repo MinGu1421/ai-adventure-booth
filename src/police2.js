@@ -61,7 +61,7 @@ function PoliceStage2() {
         o.z += dt / o.dur; o.rot += dt * 10;
         if (o.z >= 1 && !o.done) {
           o.done = true;
-          if (o.l === lane) { hearts--; shake = 0.5; flash = 0.3; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver()); } }
+          if (o.l === lane) { hearts--; shake = 0.5; flash = 0.3; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('AI를 체포하지 못했어요.')); } }
           else { dodged++; SFX.ok(); if (dodged >= GOAL) { mode = 'clear'; endT = 0; SFX.clear(); objs = []; break; } }
         }
       }

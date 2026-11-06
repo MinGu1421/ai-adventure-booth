@@ -27,7 +27,7 @@ function PoliceIntro() {
 }
 
 function PoliceStage1() {
-  return Stairs({
+  return Stairs({ overMsg: 'AI를 체포하지 못했어요.',
     title: '1 스테이지 · 산을 올라라!', hero: SPR.police, bg: bgMountain, stepCol: ['#b8a890', '#7a6a58'], turnClimbs: true,
     controls: [['A', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기'], ['D', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기']],
     onClear: () => PoliceStage1Clear(),
