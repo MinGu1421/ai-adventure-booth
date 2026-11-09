@@ -44,12 +44,14 @@ function DogStage3() {
       if (m[y][x] === 0) { R(L, X, Y, TS, TS, (x + y) % 2 ? '#8e9cb0' : '#94a2b6'); continue; }
       const h = (x * 7 + y * 13) % 5;
       if (x === 0 || y === 0 || x === mz.TW - 1 || y === mz.TH - 1) { R(L, X, Y, TS, TS, '#d8d4c8'); R(L, X, Y + TS - 3, TS, 3, '#b8b4a8'); continue; }
-      R(L, X, Y, TS, TS, '#c8a878'); R(L, X, Y + TS - 3, TS, 3, '#9a7a4a');
-      if (h === 0) { R(L, X + 3, Y + 2, 10, 7, '#2a3446'); R(L, X + 4, Y + 3, 8, 5, '#4a7aa8'); }
-      else if (h === 1) { R(L, X + 4, Y + 4, 9, 7, '#f2f2f2'); R(L, X + 5, Y + 6, 6, 1, '#999'); }
-      else if (h === 2) { R(L, X + 5, Y + 3, 6, 8, '#3aa860'); R(L, X + 6, Y + 10, 4, 4, '#8a5a3a'); }
-      else if (h === 3) { R(L, X + 2, Y + 2, 14, 2, '#7a8a9a'); }
-      else { R(L, X + 10, Y + 4, 5, 6, '#e8e0d0'); R(L, X + 11, Y + 5, 3, 2, '#6a3a1a'); }
+      // 책상(칸 안쪽에 작게) + 강아지 크기에 맞춘 작은 소품
+      R(L, X, Y, TS, TS, (x + y) % 2 ? '#8e9cb0' : '#94a2b6');
+      R(L, X + 1, Y + 2, TS - 2, TS - 5, '#c8a878'); R(L, X + 1, Y + TS - 4, TS - 2, 2, '#9a7a4a');
+      if (h === 0) { R(L, X + 6, Y + 4, 6, 4, '#2a3446'); R(L, X + 7, Y + 5, 4, 2, '#4a7aa8'); R(L, X + 8, Y + 8, 2, 1, '#2a3446'); }
+      else if (h === 1) { R(L, X + 5, Y + 5, 5, 4, '#f2f2f2'); R(L, X + 11, Y + 6, 3, 3, '#f2f2f2'); }
+      else if (h === 2) { R(L, X + 7, Y + 4, 3, 4, '#3aa860'); R(L, X + 7, Y + 8, 3, 2, '#8a5a3a'); }
+      else if (h === 3) { R(L, X + 4, Y + 5, 9, 1, '#7a8a9a'); R(L, X + 4, Y + 8, 6, 1, '#7a8a9a'); }
+      else { R(L, X + 10, Y + 5, 3, 4, '#e8e0d0'); R(L, X + 11, Y + 6, 1, 1, '#6a3a1a'); }
     }
     // 주인 자리
     R(L, gx - 8, gy - 8, 16, 16, '#ffe08a'); const b = Math.sin(S.t * 5) * 2;
@@ -266,18 +268,23 @@ function bgShelter(c, t, st) {
   const dx = back ? 286 : 204, dw = back ? 30 : 72, dh = back ? 34 : 46, dy = 200 - dh;
   if (back) { R(c, dx - 4, dy - 12, dw + 8, 10, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 7, dy - 4); R(c, 70, 182, 18, 18, '#8a6a3a'); R(c, 72, 185, 14, 1, '#6a4a2a'); R(c, 90, 188, 13, 12, '#7a5a30'); R(c, 170, 192, 24, 8, '#4a4a52'); }
   else { R(c, 178, 122, 124, 16, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소', 198, 134); R(c, dx - 6, dy - 3, dw + 12, 3, '#4a4a42'); }
-  R(c, dx, dy, dw, dh, '#2a2a2a');
+  R(c, dx, dy, dw, dh, '#2a2a2a'); if (st.open) { const k = clamp((t - st.open) / 0.8, 0, 1); R(c, dx + 2, dy + 2, dw - 4, dh - 2, k > 0.5 ? '#e8d49a' : '#5a5040'); R(c, dx + 4, dy + dh - 6, dw - 8, 6, '#f2e2b0'); }
   const hw = dw / 2, close = st.close ? Math.max(0, 1 - (t - st.close) * 1.2) : 1, half = st.close ? hw * (1 - close) : 0;
   R(c, dx, dy, half, dh, '#5a6a5a'); R(c, dx + dw - half, dy, half, dh, '#5a6a5a');
   if (half > 4) { R(c, dx + half - 3, dy + dh * 0.45, 2, 8, '#333'); R(c, dx + dw - half + 1, dy + dh * 0.45, 2, 8, '#333'); }
   const fx = dx + dw / 2 - 26;
-  if (st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
+  if (st.fam && st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
   R(c, 0, 200, LW, 120, back ? '#7a7a72' : '#8a8a82');
   const sold = personSpr({ hat: 'helmet', shirt: '#5b6b3a', pants: '#3e4a26' }, 0);
   if (back) { spr(c, sold, dx + dw + 8, 178, true); R(c, dx + dw + 4, 188, 10, 2, '#222'); }
   else { spr(c, sold, dx - 22, 178, false); spr(c, sold, dx + dw + 6, 178, true); R(c, dx - 10, 188, 10, 2, '#222'); R(c, dx + dw + 2, 188, 10, 2, '#222'); }
   let gx = 236;
-  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
+  if (back) {
+    const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k);
+    // 해피엔딩: 열린 문 안으로 걸어 들어가기
+    const k2 = st.go ? clamp((t - st.go) / 1.6, 0, 1) : 0; if (st.go) gx = lerp(262, dx + dw / 2 - 8, k2);
+    if (k2 < 1) spr(c, SPR.dog[(k < 1 || (st.go && k2 < 1)) ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false);
+  }
   else spr(c, SPR.dog[0], gx, 186, false);
   c.restore();
 }
@@ -369,13 +376,38 @@ function SadEnding() {
     { n: '강아지 로봇', p: 'dog', t: '주인님...' },
   ], () => Ending('새드 엔딩', '강아지 로봇은 닫힌 문 앞에 홀로 남았어요...\n\n힌트: 1 스테이지 쓰레기 매립장 어딘가에\n가족의 소중한 물건이 숨어 있어요. 반짝이는 곳을 잘 보세요!', '#9ab4ff', (c, t) => bgShelter(c, t, { close: -10, back: 1 })));
 }
+// 대피소 안 (해피엔딩): 강아지 로봇이 들어와서 가족을 만난다
+function bgShelterIn(c, t, st) {
+  R(c, 0, 0, LW, LH, '#8a8a80'); R(c, 0, 105, LW, LH, '#a8a49a'); c.save(); c.translate(0, -45); for (let y = 0; y < 150; y += 16) R(c, 0, y, LW, 1, '#7a7a70');
+  for (let i = 0; i < 4; i++) { R(c, 40 + i * 120, 50, 50, 4, '#f4f4e8'); R(c, 40 + i * 120, 54, 50, 2, '#ffffff60'); }
+  R(c, 160, 70, 150, 20, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소 · 실내', 176, 84);
+  R(c, 14, 92, 34, 58, '#5a5040'); R(c, 17, 95, 28, 55, '#e8d49a');
+  R(c, 0, 150, LW, 170, '#a8a49a'); for (let x = 0; x < LW; x += 32) R(c, x, 150, 1, 170, '#98948a');
+  // 다른 대피 주민들, 담요와 간이침대
+  const cot = (x, y, col) => { R(c, x, y, 40, 8, col); R(c, x, y + 8, 40, 2, '#5a5a5a'); R(c, x + 2, y + 10, 2, 5, '#5a5a5a'); R(c, x + 36, y + 10, 2, 5, '#5a5a5a'); };
+  cot(70, 168, '#6a8ac8'); cot(130, 196, '#c86a6a'); cot(240, 172, '#6ac88a'); cot(90, 220, '#c8b86a');
+  spr(c, personSpr({ hair: '#6a6a6a', shirt: '#8a6a4a' }, 0), 80, 146); spr(c, personSpr({ hair: '#2a2a2a', shirt: '#4a7a9a' }, 0), 150, 174, true); spr(c, personSpr({ hair: '#d8d8d8', shirt: '#9b5fc0', pants: '#5a3a70' }, 0), 250, 150);
+  R(c, 200, 140, 30, 20, '#b89a6a'); R(c, 204, 136, 8, 6, '#e8e0d0'); R(c, 216, 134, 10, 8, '#4a7ad8');
+  // 가족
+  const fam = st.meet;
+  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 360, 172, true);
+  spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 400, 170, true);
+  spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, fam ? (t * 6 | 0) % 2 : 0), fam ? 336 + Math.sin(t * 6) * 3 : 384, fam ? 180 : 184, !fam);
+  // 강아지 로봇이 문에서 가족에게 달려감
+  const k = st.run ? clamp((t - st.run) / 2.4, 0, 1) : 0, x = lerp(22, 318, k);
+  spr(c, SPR.dog[k < 1 ? (t * 8 | 0) % 2 : 0], x, 190 - (k < 1 ? Math.abs(Math.sin(t * 10)) * 3 : 0), false);
+  if (fam) for (let i = 0; i < 3; i++) { const q = (t * 0.6 + i / 3) % 1; c.globalAlpha = 1 - q; R(c, 330 + i * 18, 170 - q * 40, 4, 3, '#ff6a8a'); R(c, 331 + i * 18, 169 - q * 40, 2, 1, '#ff6a8a'); c.globalAlpha = 1; }
+  c.restore();
+}
 function HappyEnding() {
   const B = (c, t, st) => { st.back = 1; bgShelter(c, t, st); };
   return Cutscene([
     { n: '', t: '강아지 로봇은 펜던트를 열어 군인들에게 보여주었다. 그 안에는 가족과 강아지 로봇이 함께 찍은 사진이 있었다.', bg: B },
     { n: '뒷문 군인', p: 'soldier', r: 1, t: '이 사진... 안에 있는 그 가족이 맞군. 진짜 가족이었구나.' },
     { n: '뒷문 군인', p: 'soldier', r: 1, t: '확인됐다. 문을 열어라!', fx: st => st.open = st.t || 0.001 },
-    { n: '예나', p: 'yena', r: 1, t: '우리 강아지다!!! 어떻게 여기까지 왔어?!' },
+    { n: '', t: '강아지 로봇은 열린 문을 지나 대피소 안으로 들어갔다.', fx: st => st.go = st.t || 0.001 },
+    { n: '', t: '대피소 안에는 폭풍을 피해 온 사람들이 가득했다. 강아지 로봇은 사람들 사이를 두리번거리며 가족을 찾았다. 그리고...', bg: bgShelterIn, fx: st => st.run = st.t || 0.001 },
+    { n: '예나', p: 'yena', r: 1, t: '우리 강아지다!!! 어떻게 여기까지 왔어?!', fx: st => st.meet = 1 },
     { n: '로미', p: 'romi', r: 1, t: '세상에... 그 먼 길을 혼자 찾아왔구나.' },
     { n: '주인', p: 'owner', r: 1, t: '펜던트를 아직도 가지고 있었구나. 고마워, 우리 가족이 다시 모였어.' },
     { n: '강아지 로봇', p: 'dog', t: '주인님! 드디어 찾았어요!' },

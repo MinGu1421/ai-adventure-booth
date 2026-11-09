@@ -6,7 +6,7 @@ function cableCar(c, x, y, roof, body) {
 function bgCable(c, t, st, dusk) {
   if (dusk) sky(c, '141c4a', '6a4a8a'); else sky(c, '7ab8ff', 'ffe2b8');
   if (dusk) for (let i = 0; i < 25; i++) R(c, (i * 97) % LW, (i * 41) % 100, 1, 1, '#fff9');
-  hills(c, 150, 40, dusk ? '#2a2a5a' : '#8aa8c8', 2, 0, 3); hills(c, 190, 26, dusk ? '#1f2448' : '#5f8a6a', 6, 0, 3);
+  hills(c, 150, 40, dusk ? '#2a2a5a' : '#8aa8c8', 2, 0, 3); aptRow(c, 200, 1, dusk ? '#2a3058' : '#9aa8bc', dusk, 31, 250, LW); hills(c, 190, 26, dusk ? '#1f2448' : '#5f8a6a', 6, 0, 3);
   for (let i = 0; i < 8; i++) tree(c, (i * 67) % LW, 175 - (i % 3) * 5, 1.1, dusk ? '#1a2a2a' : '#3f6a48');
   // 케이블: 왼쪽 아래 → 오른쪽 위
   c.strokeStyle = '#333'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, 190); c.lineTo(LW, 20); c.stroke();
@@ -42,7 +42,7 @@ function itemSpr(k) {
 }
 const ITEMS = [0, 1, 2, 3].map(itemSpr);
 function PoliceStage2() {
-  const S = {}; const LX = [150, 240, 330], GOAL = 10;
+  const S = {}; const LX = [150, 240, 330], GOAL = 15;
   let lane = 1, px = 240, hearts = 3, dodged = 0, objs = [], nextT = 1.6, mode = 'howto', windup = -1, shake = 0, flash = 0, endT = 0, warn = [];
   function spawn() {
     const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
@@ -77,7 +77,7 @@ function PoliceStage2() {
     const sx = shake > 0 ? rnd(-3, 3) : 0;
     L.clearRect(0, 0, LW, LH); L.save(); L.translate(sx, 0);
     sky(L, '7ab8ff', 'ffd8a8');
-    hills(L, 120, 30, '#8aa8c8', 2, S.t * 3, 3); hills(L, 150, 20, '#5f8a6a', 6, S.t * 6, 3);
+    hills(L, 120, 30, '#8aa8c8', 2, S.t * 3, 3); L.save(); L.translate(-Math.min(S.t * 3, 600), 0); aptRow(L, 150, 0.9, '#a2b0c4', false, 31, 0, LW + 620); L.restore(); hills(L, 150, 20, '#5f8a6a', 6, S.t * 6, 3);
     for (let i = 0; i < 10; i++) tree(L, ((i * 53 - S.t * 30) % 520 + 520) % 520 - 30, 140 + (i % 3) * 6, 1, '#3f6a48');
     // 케이블 (원근)
     L.strokeStyle = '#333'; L.beginPath(); L.moveTo(240, 0); L.lineTo(238, 270); L.stroke(); L.beginPath(); L.moveTo(244, 0); L.lineTo(250, 270); L.stroke();
@@ -111,7 +111,7 @@ function PoliceStage2() {
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
       T('2 스테이지 · 케이블카 위의 추격', W / 2, 135, 36, '#3a2a1a', 'center');
       [['A', '왼쪽으로 한 칸 이동'], ['D', '오른쪽으로 한 칸 이동']].forEach((s, i) => { box(W / 2 - 280, 175 + i * 74, 70, 58, '#3a2a1a', '#ffe08a', 3); T(s[0], W / 2 - 245, 206 + i * 74, 32, '#ffe08a', 'center'); T(s[1], W / 2 - 190, 206 + i * 74, 24, '#3a2a1a', 'left', FONT_TX); });
-      T('AI가 던지는 물건을 10번 피하면 클리어! 빨간 표시가 뜬 칸을 피하세요.', W / 2, 355, 20, '#7a4a1a', 'center', FONT_TX);
+      T('AI가 던지는 물건을 15번 피하면 클리어! 빨간 표시가 뜬 칸을 피하세요.', W / 2, 355, 20, '#7a4a1a', 'center', FONT_TX);
       if ((S.t * 2 | 0) % 2) T('스페이스 또는 클릭으로 시작 ▶', W / 2, 410, 24, '#3a2a1a', 'center');
     }
     if (mode === 'clear') T('성공!', W / 2, 220, 70, '#ffe08a', 'center', FONT_UI, '#000');

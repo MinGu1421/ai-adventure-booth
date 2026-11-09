@@ -20,8 +20,8 @@ function Stairs(cfg) {
     if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); build(); return; }
     if (mode === 'play' && k === 'e') { if (!paused) { paused = true; SFX.click(); } else { paused = false; cd = 3; SFX.click(); } return; }
     if (mode !== 'play' || paused || cd > 0) return;
-    if (k === 'a') { started = true; climb(); }
-    if (k === 'd') { started = true; face = -face; SFX.turn(); if (cfg.turnClimbs) climb(); }
+    if (k === 'd') { started = true; climb(); }
+    if (k === 'a') { started = true; face = -face; SFX.turn(); if (cfg.turnClimbs) climb(); }
   };
   S.click = (x, y) => {
     if (mode === 'play' && inside(x, y, PB2)) { S.key('e'); return; }

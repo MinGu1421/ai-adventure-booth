@@ -19,6 +19,8 @@ function PB(w, h) {
   const disc = (cx, cy, r, col) => { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) set(cx + x, cy + y, col); };
   return { set, rect, line, disc, w, h, done: () => { g.putImageData(id, 0, 0); return c; } };
 }
+// 여러 단계 색 사이를 부드럽게 섞기 (세미실사 음영용)
+function ramp(cols, f) { f = Math.max(0, Math.min(cols.length - 1.001, f)); const i = Math.floor(f), t = f - i, a = hexRGBA(cols[i]), b = hexRGBA(cols[i + 1]); return '#' + [0, 1, 2].map(k => Math.round(a[k] + (b[k] - a[k]) * t).toString(16).padStart(2, '0')).join(''); }
 const SKINS = { light: ['#ffe2c8', '#f5c9a3', '#e6b088', '#cf946c', '#a8714e'], tan: ['#f2cfa8', '#e2b386', '#cf9a6c', '#b27c52', '#8a5a38'], old: ['#f6dcc4', '#ebc6a2', '#d9ad86', '#c09070', '#946a4c'] };
 const shadeHair = (c) => { const [r, g, b] = hexRGBA(c); const f = (k) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join(''); return [f(1.45), f(1.15), c, f(0.7), f(0.45)]; };
 
@@ -34,18 +36,17 @@ function realHuman(o, st) {
   const bob = st.breath || 0, BX = CX + (o.bodyX || 0);
   const SW0 = child ? 31 : fem ? 34 : old ? 37 : 40, SW = SW0 - 7, yN = (child ? 80 : 82), yS = yN + 13;
   const bw = y => { if (y < yN - 2) return -1; if (y < yS) { const t = (y - yN + 2) / (yS - yN + 2); return 8 + (SW - 8) * Math.pow(Math.sin(t * Math.PI / 2), 0.7); } return SW + (y - yS) * 0.07; };
-  const hairCol = (x, y) => { const n = (x * 3 + (y >> 2) * 5) % 9; if (y < yT + 7 && x > CX - 12 && x < CX - 2 && (x + y) % 3 === 0) return H[0]; return n === 0 ? H[3] : n === 4 ? H[1] : H[2]; };
+  const hairCol = (x, y) => { const r = (x - CX) / (FW + 6), st = Math.sin(x * 1.7 + y * 0.35) * 0.35 + Math.sin(x * 0.6 - y * 0.2) * 0.2; let f = 2 + r * 0.9 + st; if (y < yT + 9 && r < -0.05 && r > -0.6) f -= 1.1 * (1 - Math.abs(r + 0.32) * 3); return ramp(H, f); };
   const style = o.style || 'short';
   // ----- 뒷머리 -----
   if (style === 'long') for (let y = yT; y < 118; y++) for (let x = CX - FW - 6; x <= CX + FW + 6; x++) { const e = y > 108 ? (y - 108) * 0.8 : 0; if (Math.abs(x - CX) <= FW + 6 - e) P.set(x, y, hairCol(x, y)); }
   if (style === 'pony') { const sw = st.act ? 2 : 0; for (let y = yT + 6; y < yT + 58; y++) { const k = (y - yT - 6) / 52, cx2 = CX + FW + 3 + sw * Math.sin(k * 3), r = 5 - k * 3; for (let x = cx2 - r; x <= cx2 + r; x++) P.set(x, y, hairCol(Math.round(x), y)); } }
   // ----- 몸 / 옷 -----
   const top = o.top || '#4a6fd6', topS = shadeHair(top);
-  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
+  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let f = 1.7 + r * 0.9 + Math.pow(Math.max(0, r), 3) * 1.3 - Math.max(0, -r - 0.75) * 2; if (y < yS + 2) f -= 0.25 * (1 - Math.abs(r)); if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) f += 0.6; P.set(x, y, ramp(topS, f)); } }
   // ----- 목 -----
   const NW = child || fem ? 6 : 7.5;
-  for (let y = yC - 10; y < yN + 6; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, x > CX + 2 ? S[2] : S[1]);
-  for (let y = yC - 1; y < yC + 4; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, S[3]);
+  for (let y = yC - 10; y < yN + 6; y++) { const nc = lerp(CX, BX, clamp((y - yC + 10) / (yN + 6 - yC + 10), 0, 1)); for (let x = Math.floor(nc - NW); x <= nc + NW; x++) { const r = (x - nc) / NW; P.set(x, y, ramp(S, 1.1 + r * 0.8 + (y < yC + 4 ? 1 - (y - yC + 1) / 6 : 0) * 1.2)); } }
   // ----- 옷깃 -----
   const of = o.outfit || 'tee';
   const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = BX - w; x <= BX + w; x++) P.set(x, y, x > BX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(BX - w - 1, y, col); P.set(BX - w - 2, y, col2 || col); P.set(BX + w + 1, y, col); P.set(BX + w + 2, y, col2 || col); } };
@@ -62,10 +63,15 @@ function realHuman(o, st) {
   if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = BX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - BX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(BX - 26, yN + 22, 52, 3, '#2e381c'); }
   if (of === 'police') { P.rect(BX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(BX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(BX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(BX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(BX + 14, yN + 22, 10, 2, '#9fb8e8'); }
   // ----- 얼굴 -----
-  for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = S[1]; if (r > 0.45) c = S[2]; if (r > 0.82) c = S[3]; if (r < -0.82) c = S[2]; if (y > yC - 4) c = r > 0 ? S[3] : S[2]; if (y < yT + 15 && r < -0.15 && r > -0.7) c = S[0]; P.set(x, y, c); } }
-  for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) P.set(CX - 12 + x, E + 6 + y, S[0]);
+  for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) {
+    const r = (x - CX) / w, v = (y - yT) / (yC - yT);
+    let f = 1.0 + r * 0.75 + Math.pow(Math.abs(r), 4) * 1.1 + Math.max(0, v - 0.86) * 7 * (0.6 + Math.max(0, r));
+    f -= Math.max(0, 0.35 - Math.abs(v - 0.3)) * Math.max(0, 0.6 - Math.abs(r + 0.35)) * 2.4; // 이마·광대 하이라이트
+    f += Math.max(0, 0.12 - Math.abs(v - 0.62)) * Math.max(0, Math.abs(r) - 0.55) * 8; // 볼 아래 음영
+    P.set(x, y, ramp(S, f));
+  } }
   // 귀
-  for (let y = E - 2; y < E + 9; y++) { const k = 1 - Math.abs((y - E - 3) / 6); P.set(CX - FW - 1, y, S[2]); if (k > 0.3) P.set(CX - FW - 2, y, S[1]); P.set(CX + FW + 1, y, S[3]); if (k > 0.3) P.set(CX + FW + 2, y, S[3]); }
+  for (let y = E - 2; y < E + 9; y++) { const k = 1 - Math.abs((y - E - 3) / 6), wl = fw(y); P.set(CX - wl - 1, y, S[2]); if (k > 0.3) P.set(CX - wl - 2, y, S[1]); if (k > 0.6) P.set(CX - wl - 3, y, S[2]); P.set(CX + wl + 1, y, S[3]); if (k > 0.3) P.set(CX + wl + 2, y, S[3]); if (k > 0.6) P.set(CX + wl + 3, y, S[4]); }
   // 눈
   const EX = child ? 8 : 7.5, look = st.look || 0, iris = o.eyes || '#3a2618';
   const eye = (ex, side) => {
@@ -135,6 +141,21 @@ function realHuman(o, st) {
   pose.forEach((p, i) => limb(P, i ? k.sr : k.sl, k.sy, p[0], p[1], p[2], p[3], armS, S, short));
   if (o.drawAct) o.drawAct(P, st, k, pose);
   return P.done();
+}
+// Scale2x(EPX)를 두 번 적용해 4배로 키움: 머리카락·윤곽선의 계단 모양을 부드럽게
+function scale2x(src) {
+  const w = src.width, h = src.height, sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const g = c.getContext('2d'); const od = g.createImageData(w * 2, h * 2), o = od.data;
+  const px = (x, y) => { x = x < 0 ? 0 : x >= w ? w - 1 : x; y = y < 0 ? 0 : y >= h ? h - 1 : y; return (y * w + x) * 4; };
+  const same = (a, b) => sd[a] === sd[b] && sd[a + 1] === sd[b + 1] && sd[a + 2] === sd[b + 2] && sd[a + 3] === sd[b + 3];
+  const put = (x, y, i) => { const k = (y * w * 2 + x) * 4; o[k] = sd[i]; o[k + 1] = sd[i + 1]; o[k + 2] = sd[i + 2]; o[k + 3] = sd[i + 3]; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const P = px(x, y), A = px(x, y - 1), B = px(x + 1, y), C = px(x - 1, y), D = px(x, y + 1);
+    let e0 = P, e1 = P, e2 = P, e3 = P;
+    if (!same(A, D) && !same(C, B)) { if (same(C, A)) e0 = A; if (same(A, B)) e1 = B; if (same(C, D)) e2 = C; if (same(D, B)) e3 = D; }
+    put(x * 2, y * 2, e0); put(x * 2 + 1, y * 2, e1); put(x * 2, y * 2 + 1, e2); put(x * 2 + 1, y * 2 + 1, e3);
+  }
+  g.putImageData(od, 0, 0); return c;
 }
 function limb(P, sx, sy, ex, ey, hx, hy, sl, sk, short) {
   // 위팔
@@ -230,6 +251,7 @@ function portrait(k, st) {
   let img;
   if (k === 'ai') img = robotAIImg(st); else if (k === 'dog') img = robotDogImg(st);
   else img = realHuman(CHAR[k] || CHAR.adult, st);
+  img = scale2x(scale2x(img)); img.base = 96;
   return PORTRAITS[key] = img;
 }
 // 현재 시간에 맞는 표정/동작 상태
@@ -242,8 +264,10 @@ function portraitState(k, talking) {
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
 function drawPortrait(k, x, y, s, crop, talking) {
-  const st = portraitState(k, talking), img = portrait(k, st), h = crop || img.height;
-  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180;
-  if (tl) { ctx.save(); ctx.translate(x + img.width * s / 2, y + by + h * s); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -img.width * s / 2, -h * s, img.width * s, h * s); ctx.restore(); }
-  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
+  const st = portraitState(k, talking), img = portrait(k, st), q = img.width / (img.base || img.width), h = (crop || 144) * q;
+  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180, dw = 96 * s, dh = h / q * s;
+  const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  if (tl) { ctx.save(); ctx.translate(x + dw / 2, y + by + dh); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -dw / 2, -dh, dw, dh); ctx.restore(); }
+  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, dw, dh);
+  ctx.imageSmoothingEnabled = sm;
 }

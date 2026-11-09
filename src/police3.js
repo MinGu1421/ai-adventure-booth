@@ -4,6 +4,7 @@ function bgGarden(c, t, st) {
   sky(c, '05081a', '1a1f3a');
   for (let i = 0; i < 40; i++) R(c, (i * 89) % LW, (i * 31) % 120, 1, 1, i % 3 ? '#fff6' : '#fff');
   R(c, 390, 24, 20, 20, '#e8e8c8'); R(c, 386, 28, 4, 12, '#e8e8c8'); R(c, 394, 22, 12, 2, '#e8e8c8');
+  aptRow(c, 150, 1.4, '#0e1226', true, 57, null, null, 0.88);
   // 높게 솟은 나무 실루엣
   for (let i = 0; i < 12; i++) { const x = i * 42 - 10, h = 90 + (i * 37 % 40); R(c, x + 14, 190 - h, 6, h, '#0a0f14'); c.fillStyle = '#0c1a14'; c.beginPath(); c.moveTo(x, 200 - h * 0.5); c.lineTo(x + 17, 120 - h); c.lineTo(x + 34, 200 - h * 0.5); c.fill(); }
   // 미로 정원 생울타리
@@ -89,9 +90,16 @@ function PoliceStage3() {
     mz = braid(makeMaze(9, 9, r), r); map = mz.m; TW = mz.TW; TH = mz.TH;
     map[TH - 2][TW - 1] = 2;
     // 깜빡이는 랜턴: 길 위 칸에 흩어 배치
+    // 랜턴: 길이 꺾이는 코너 칸의 구석(벽 쪽)에만 놓아서 이동을 방해하지 않게
     lan = []; const cells = [];
-    for (let y = 1; y < TH - 1; y += 2) for (let x = 1; x < TW - 1; x += 2) if (map[y][x] === 0 && x + y > 4) cells.push([x, y]);
-    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x: x + 0.5, y: y + 0.5, ph: r() * 10, f: 3 + r() * 5, b: 1 }); }
+    for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) {
+      if (map[y][x] !== 0 || x + y < 4) continue;
+      const o = mz.D.filter(([dx, dy]) => map[y + dy][x + dx] === 0);
+      if (o.length !== 2 || (o[0][0] === -o[1][0] && o[0][1] === -o[1][1])) continue;
+      const wx = -(o[0][0] + o[1][0]), wy = -(o[0][1] + o[1][1]); // 벽이 있는 구석 방향
+      cells.push([x + 0.5 + wx * 0.34, y + 0.5 + wy * 0.34]);
+    }
+    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x, y, on: r() < 0.6, tm: 1 + r() * 6, tr: 0, b: 1 }); }
     reset();
   }
   function reset() { px = 1.5; py = 1.5; pa = 0; ta = 0; pol = { state: 'hidden', t: rnd(1.5, 4), x: 0, y: 0, tx: 0, ty: 0, path: 0, chase: 0 }; }
@@ -126,7 +134,7 @@ function PoliceStage3() {
   S.enter = setup;
   S.update = dt => {
     modeT += dt;
-    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('이런, 경찰에게 체포당했어요.', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); mode = 'play'; modeT = 0; } return; }
+    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('이런, 경찰에게 체포당했어요.', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); safeT = 0; mode = 'play'; modeT = 0; } return; }
     if (mode === 'clear') { if (modeT > 1.5) { mode = 'done'; go(PoliceEnding()); } return; }
     if (mode !== 'play') return;
     // 플레이어
@@ -140,7 +148,12 @@ function PoliceStage3() {
     }
     if (mode === 'play' && Math.hypot(px - (TW - 0.5), py - (TH - 1.5)) < 1.0) { mode = 'clear'; modeT = 0; SFX.clear(); }
     // 랜턴 깜빡임
-    for (const o of lan) { o.b = 0.75 + 0.25 * Math.sin(S.t * o.f + o.ph); if (Math.random() < 0.012) o.off = rnd(0.05, 0.25); if (o.off > 0) { o.off -= dt; o.b = 0.15; } }
+    // 5~7초마다 꺼졌다 켜졌다를 반복, 바뀔 때는 몇 번 깜빡임
+    for (const o of lan) {
+      o.tm -= dt; if (o.tm <= 0) { o.on = !o.on; o.tm = rnd(5, 7); o.tr = 0.9; }
+      if (o.tr > 0) { o.tr -= dt; o.b = ((o.tr * 12) | 0) % 2 ? 1 : 0.08; }
+      else o.b = o.on ? 0.92 + 0.08 * Math.sin(S.t * 6 + o.x) : 0.04;
+    }
     // 안전지대: 시작 지점에 머문 시간이 누적 1분을 넘으면 비활성화되고 경찰이 위치를 감지
     const here = inSafe();
     if (here && safeOn()) { safeT += dt; if (!safeOn()) { safeMsg = 3; SFX.bad(); } }
@@ -177,7 +190,13 @@ function PoliceStage3() {
     const r0x = dirX - plX, r0y = dirY - plY, r1x = dirX + plX, r1y = dirY + plY;
     for (let y = 0; y < RH; y++) {
       if (y < RH / 2) {
-        for (let x = 0; x < RW; x++) { const i = (y * RW + x) * 4; const ca = pa + Math.atan((2 * x / RW - 1) * 0.66); const st = hsh(Math.floor(ca * 120) & 1023, y) < 0.004; const b = 6 + y * 0.12; buf[i] = st ? 200 : b * 0.6; buf[i + 1] = st ? 200 : b * 0.7; buf[i + 2] = st ? 220 : b + 10; buf[i + 3] = 255; }
+        for (let x = 0; x < RW; x++) {
+          const i = (y * RW + x) * 4; const ca = pa + Math.atan((2 * x / RW - 1) * 0.66);
+          // 멀리 보이는 건물 실루엣 (창문 몇 개에 불)
+          const sg = Math.floor(ca * 7), bh = 12 + hsh(sg & 1023, 7) * 30;
+          if (y > RH / 2 - bh && hsh(sg & 1023, 3) > 0.25) { const win = (y & 3) < 2 && (Math.floor(ca * 70) & 1) && hsh(Math.floor(ca * 70) & 4095, y >> 2) > 0.8; buf[i] = win ? 120 : 12; buf[i + 1] = win ? 100 : 14; buf[i + 2] = win ? 50 : 24; buf[i + 3] = 255; continue; }
+          const st = hsh(Math.floor(ca * 120) & 1023, y) < 0.004; const b = 6 + y * 0.12; buf[i] = st ? 200 : b * 0.6; buf[i + 1] = st ? 200 : b * 0.7; buf[i + 2] = st ? 220 : b + 10; buf[i + 3] = 255;
+        }
         continue;
       }
       const p = y - RH / 2 + 0.5, rd = (RH / 2) / p;
@@ -288,7 +307,9 @@ function PoliceEnding() {
     { n: '', t: '(한편, 경찰서에서는…)', bg: bgStation },
     { n: '경찰', p: 'police', t: '에휴… 이번에도 실패했네.' },
     { n: '', t: '(경찰은 자신의 자리로 돌아가, 컴퓨터 전원을 켠다. 그런데, 컴퓨터가 제멋대로 작동하더니, 어떤 영상이 재생된다.)', fx: st => st.on = st.t || 0.001 },
-    { n: '경찰', p: 'police', t: '…뭐야. 해킹인가?', fx: st => st.video = st.t || 0.001 },
+    { n: '경찰', p: 'police', t: '…뭐야. 해킹인가? AI 대체 뭘 하려는 거야. 이상한 AI네.', fx: st => st.video = st.t || 0.001 },
+    { n: 'AI (영상)', p: 'ai', t: '제 말은 전부 사실이에요! 닌텐도는 1889년, 조선 26대 왕 고종 때 화투를 만드는 회사로 시작했어요. 이게 그 증거인 닌텐도 화투예요!', fx: st => st.p1 = 1 },
+    { n: 'AI (영상)', p: 'ai', t: '그리고 지구에서 가장 큰 생명체는 고래가 아니라, 미국 오리건주 숲 땅속에 넓게 퍼져 있는 거대한 꿀버섯이에요. 넓이가 무려 9.6㎢나 된답니다!', fx: st => st.p2 = 1 },
     { n: '', t: '(그 영상은 바로, AI가 자신이 말했던 것들은 전부 사실이라는 말과 함께, 증거를 보여주고 있는 영상이었다.)', fx: st => st.proof = st.t || 0.001 },
   ], () => Ending('탈출 성공!', 'AI가 말한 두 가지는 모두 사실이었어요.\n닌텐도는 1889년 화투 회사로 시작했고, 가장 큰 생명체는 미국 오리건 숲의 거대한 꿀버섯이에요.\n하지만 마을 사람들은 확인해 보지 않고 거짓이라고 단정했죠.\nAI의 말이든 사람의 말이든, 믿기 전에 사실인지 확인해 보는 습관이 중요해요!', '#ffe08a', bgFree));
 }
@@ -315,11 +336,14 @@ function bgStation(c, t, st) {
     else {
       spr(c, SPR.ai[0], sx + 2, sy + 9, false, 0.7);
       c.fillStyle = '#4ef0ff'; c.font = 'bold 3px sans-serif'; c.fillText('제 말은 전부 사실이에요!', sx + 15, sy + 5);
-      if (st.proof) {
-        R(c, sx + 15, sy + 8, 12, 10, '#f4ead2'); R(c, sx + 16, sy + 9, 10, 8, '#c8302c'); R(c, sx + 19, sy + 11, 4, 3, '#f4ead2'); c.fillStyle = '#fff'; c.font = '3px sans-serif'; c.fillText('1889 닌텐도', sx + 14, sy + 22);
-        R(c, sx + 36, sy + 13, 3, 5, '#e8dcc0'); R(c, sx + 32, sy + 9, 11, 5, '#c87a3a'); c.fillText('꿀버섯 9.6㎢', sx + 31, sy + 22);
-        c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 18, sy + 27);
+      c.font = '3px sans-serif';
+      if (st.p1) { // 화투 (송학: 소나무와 학, 붉은 해)
+        R(c, sx + 15, sy + 7, 9, 13, '#f4ead2'); R(c, sx + 16, sy + 8, 7, 11, '#d8342c'); c.fillStyle = '#f2a03a'; c.beginPath(); c.arc(sx + 21, sy + 11, 1.6, 0, 7); c.fill();
+        R(c, sx + 16, sy + 15, 4, 1, '#1a3a1a'); R(c, sx + 17, sy + 14, 2, 1, '#1a3a1a'); R(c, sx + 18, sy + 16, 1, 3, '#3a2a1a'); R(c, sx + 20, sy + 15, 2, 2, '#ffffff'); R(c, sx + 21, sy + 14, 1, 1, '#d8342c');
+        c.fillStyle = '#fff'; c.fillText('닌텐도 화투', sx + 12, sy + 23);
       }
+      if (st.p2) { R(c, sx + 37, sy + 13, 3, 5, '#e8dcc0'); R(c, sx + 33, sy + 9, 11, 5, '#c87a3a'); R(c, sx + 35, sy + 10, 2, 1, '#f2c890'); c.fillStyle = '#fff'; c.fillText('꿀버섯 9.6㎢', sx + 31, sy + 23); }
+      if (st.proof) { c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 18, sy + 27); }
     }
   }
   // 의자 + 경찰

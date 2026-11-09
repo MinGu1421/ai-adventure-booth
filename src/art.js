@@ -54,6 +54,16 @@ function house(c, x, y, w, roof, wall) {
   R(c, x + 6, y + 8, 8, 8, '#7ec8f0'); R(c, x + w - 16, y + 10, 8, 16, '#7a4a2a'); R(c, x + 9, y + 8, 1, 8, '#fff'); R(c, x + 6, y + 11, 8, 1, '#fff');
 }
 
+// 먼 아파트(건물) 줄: 바닥 y, 높이 배율, 색, 밤이면 불 켜진 창문
+function aptRow(c, y, k, col, night, seed, x0, x1, lit) {
+  const r = seeded(seed || 9); let x = x0 == null ? -6 : x0; x1 = x1 == null ? LW : x1;
+  while (x < x1) {
+    const w = 16 + Math.floor(r() * 10), h = Math.floor((30 + r() * 26) * k);
+    R(c, x, y - h, w, h, col); R(c, x, y - h - 2, w, 2, col);
+    for (let yy = y - h + 4; yy < y - 3; yy += 5) for (let xx = x + 2; xx < x + w - 3; xx += 4) { const v = r(); R(c, xx, yy, 2, 2, night ? (v > (lit || 0.55) ? '#f2d27a' : '#00000030') : '#ffffff40'); }
+    x += w + 3 + Math.floor(r() * 8);
+  }
+}
 // 배경 사물을 캐릭터 크기에 맞게 줄여 그리기 (ax, ay: 바닥 기준점)
 function prop(c, ax, ay, k, fn) { c.save(); c.translate(ax, ay); c.scale(k, k); c.translate(-ax, -ay); fn(); c.restore(); }
 // 홍산 야르 초등학교 (x: 왼쪽, y: 바닥)
@@ -88,7 +98,9 @@ function bgVillage(c, t, st) {
   // AI
   let ax = 236; if (st.flee) { st.fx = (st.fx || 0) + 1; ax += Math.min(400, (t - st.flee) * 160); }
   if (ax < 480) spr(c, SPR.ai[st.flee ? ((t * 8 | 0) % 2) : 0], ax, 192 + (st.flee ? 0 : Math.round(Math.sin(t * 3))), false);
-  if (st.live) { R(c, 360, 170, 8, 13, '#222'); R(c, 361, 171, 6, 10, '#6ad1ff'); if ((t * 2 | 0) % 2) R(c, 362, 172, 2, 2, '#f33'); }
+  // 어린이가 손에 든 아이폰 (AI 쪽으로 들고 촬영), 천재는 귀에 갤럭시폰
+  if (st.live) { R(c, 359, 205, 4, 3, '#36b0e8'); R(c, 357, 205, 3, 3, '#f2c9a0'); R(c, 356, 198, 5, 8, '#e8e8ec'); R(c, 357, 199, 3, 6, '#2a2a30'); if ((t * 2 | 0) % 2) R(c, 359, 199, 1, 1, '#f33'); }
+  if (st.call) { R(c, 344, 205, 2, 4, '#ffffff'); R(c, 343, 202, 3, 3, '#f2c9a0'); R(c, 343, 197, 2, 6, '#1a1a2a'); }
   if (st.police) { const px = Math.min(180, -20 + (t - st.police) * 120); spr(c, SPR.police[px < 180 ? (t * 6 | 0) % 2 : 0], px, 196); R(c, 10, 196, 30, 16, '#fff'); R(c, 10, 196, 30, 4, '#2a3d6e'); R(c, 18, 192, 6, 4, (t * 4 | 0) % 2 ? '#f33' : '#33f'); R(c, 12, 210, 6, 6, '#222'); R(c, 32, 210, 6, 6, '#222'); }
   c.restore();
 }

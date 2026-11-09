@@ -192,7 +192,7 @@ function DogAfter1() {
 function DogStage2() {
   return Stairs({ overMsg: '주인을 찾지 못했어요.',
     title: '2 스테이지 · 회사 계단 오르기', hero: [SPR.dog[0], SPR.dog[1]], heroOff: [10, 16], bg: bgStairwell, stepCol: ['#9aa4a0', '#6a7470'], turnClimbs: true,
-    controls: [['A', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기'], ['D', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기']],
+    controls: [['A', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기'], ['D', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기']],
     onClear: () => DogAfter2(),
   });
 }

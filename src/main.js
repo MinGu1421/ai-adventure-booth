@@ -20,12 +20,16 @@ function bgMenu(c, t) {
 }
 function MainMenu() {
   const S = { noHome: true };
-  const B = [{ x: W / 2 - 230, y: 210, w: 460, h: 96, n: '경찰과 AI', s: '허위 사실을 퍼뜨린 AI를 잡아라!', go: () => PoliceIntro() },
-  { x: W / 2 - 230, y: 330, w: 460, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
+  const B = [{ x: W / 2 - 260, y: 210, w: 520, h: 96, n: '경찰과 AI', s: '허위 사실을 퍼뜨린 AI를 잡아라!', warn: '⚠ 공포 미로가 있으니 주의하세요.', go: () => PoliceIntro() },
+  { x: W / 2 - 260, y: 330, w: 520, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
   S.enter = () => { G.pendant = false; };
   S.click = (x, y) => B.forEach(b => { if (inside(x, y, b)) { SFX.ok(); go(b.go()); } });
   S.draw = () => {
     L.clearRect(0, 0, LW, LH); bgMenu(L, S.t); blitLo();
+    // 배경의 경찰이 AI를 쫓으며 외치는 말풍선
+    { const px = (60 + ((S.t * 40) % 420)) * 2, py = 228 * 2; if ((S.t % 3) < 2 && px < W - 60) {
+      const bx = px - 14, by = py - 50; box(bx, by, 112, 34, '#fff', '#222', 2); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(px + 10, by + 32); ctx.lineTo(px + 18, by + 32); ctx.lineTo(px + 12, by + 42); ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 10, by + 33); ctx.lineTo(px + 12, by + 42); ctx.lineTo(px + 18, by + 33); ctx.stroke();
+      T('거기 서라!', bx + 56, by + 18, 19, '#c81818', 'center'); } }
     T('우리가 만드는 강당 AI 과학 체험부스', W / 2, 80, 30, '#bcd0ff', 'center', FONT_UI, '#000');
     T('AI 어드벤처', W / 2, 140, 72, '#ffe08a', 'center', FONT_UI, '#2a1a00');
     B.forEach((b, i) => {
@@ -33,6 +37,7 @@ function MainMenu() {
       box(b.x, b.y + (h ? -4 : 0), b.w, b.h, h ? '#ffe08a' : '#2a2a5a', h ? '#fff' : '#9aa4c8', 5);
       drawPortrait(i ? 'dog' : 'police', b.x + 14, b.y + 8 + (h ? -4 : 0), 0.85, 94);
       T(b.n, b.x + 110, b.y + 36 + (h ? -4 : 0), 38, h ? '#2a1a00' : '#fff');
+      if (b.warn) T(b.warn, b.x + 268, b.y + 38 + (h ? -4 : 0), 17, h ? '#b01818' : '#ff8a8a', 'left', FONT_TX);
       T(b.s, b.x + 110, b.y + 72 + (h ? -4 : 0), 20, h ? '#5a3a10' : '#bcd0ff', 'left', FONT_TX);
     });
     T('마우스를 버튼에 가져다 대고 클릭하세요', W / 2, H - 30, 20, '#ccd', 'center');

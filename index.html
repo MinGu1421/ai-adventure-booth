@@ -272,6 +272,8 @@ function PB(w, h) {
   const disc = (cx, cy, r, col) => { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r) set(cx + x, cy + y, col); };
   return { set, rect, line, disc, w, h, done: () => { g.putImageData(id, 0, 0); return c; } };
 }
+// 여러 단계 색 사이를 부드럽게 섞기 (세미실사 음영용)
+function ramp(cols, f) { f = Math.max(0, Math.min(cols.length - 1.001, f)); const i = Math.floor(f), t = f - i, a = hexRGBA(cols[i]), b = hexRGBA(cols[i + 1]); return '#' + [0, 1, 2].map(k => Math.round(a[k] + (b[k] - a[k]) * t).toString(16).padStart(2, '0')).join(''); }
 const SKINS = { light: ['#ffe2c8', '#f5c9a3', '#e6b088', '#cf946c', '#a8714e'], tan: ['#f2cfa8', '#e2b386', '#cf9a6c', '#b27c52', '#8a5a38'], old: ['#f6dcc4', '#ebc6a2', '#d9ad86', '#c09070', '#946a4c'] };
 const shadeHair = (c) => { const [r, g, b] = hexRGBA(c); const f = (k) => '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v * k))).toString(16).padStart(2, '0')).join(''); return [f(1.45), f(1.15), c, f(0.7), f(0.45)]; };
 
@@ -287,18 +289,17 @@ function realHuman(o, st) {
   const bob = st.breath || 0, BX = CX + (o.bodyX || 0);
   const SW0 = child ? 31 : fem ? 34 : old ? 37 : 40, SW = SW0 - 7, yN = (child ? 80 : 82), yS = yN + 13;
   const bw = y => { if (y < yN - 2) return -1; if (y < yS) { const t = (y - yN + 2) / (yS - yN + 2); return 8 + (SW - 8) * Math.pow(Math.sin(t * Math.PI / 2), 0.7); } return SW + (y - yS) * 0.07; };
-  const hairCol = (x, y) => { const n = (x * 3 + (y >> 2) * 5) % 9; if (y < yT + 7 && x > CX - 12 && x < CX - 2 && (x + y) % 3 === 0) return H[0]; return n === 0 ? H[3] : n === 4 ? H[1] : H[2]; };
+  const hairCol = (x, y) => { const r = (x - CX) / (FW + 6), st = Math.sin(x * 1.7 + y * 0.35) * 0.35 + Math.sin(x * 0.6 - y * 0.2) * 0.2; let f = 2 + r * 0.9 + st; if (y < yT + 9 && r < -0.05 && r > -0.6) f -= 1.1 * (1 - Math.abs(r + 0.32) * 3); return ramp(H, f); };
   const style = o.style || 'short';
   // ----- 뒷머리 -----
   if (style === 'long') for (let y = yT; y < 118; y++) for (let x = CX - FW - 6; x <= CX + FW + 6; x++) { const e = y > 108 ? (y - 108) * 0.8 : 0; if (Math.abs(x - CX) <= FW + 6 - e) P.set(x, y, hairCol(x, y)); }
   if (style === 'pony') { const sw = st.act ? 2 : 0; for (let y = yT + 6; y < yT + 58; y++) { const k = (y - yT - 6) / 52, cx2 = CX + FW + 3 + sw * Math.sin(k * 3), r = 5 - k * 3; for (let x = cx2 - r; x <= cx2 + r; x++) P.set(x, y, hairCol(Math.round(x), y)); } }
   // ----- 몸 / 옷 -----
   const top = o.top || '#4a6fd6', topS = shadeHair(top);
-  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
+  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let f = 1.7 + r * 0.9 + Math.pow(Math.max(0, r), 3) * 1.3 - Math.max(0, -r - 0.75) * 2; if (y < yS + 2) f -= 0.25 * (1 - Math.abs(r)); if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) f += 0.6; P.set(x, y, ramp(topS, f)); } }
   // ----- 목 -----
   const NW = child || fem ? 6 : 7.5;
-  for (let y = yC - 10; y < yN + 6; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, x > CX + 2 ? S[2] : S[1]);
-  for (let y = yC - 1; y < yC + 4; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, S[3]);
+  for (let y = yC - 10; y < yN + 6; y++) { const nc = lerp(CX, BX, clamp((y - yC + 10) / (yN + 6 - yC + 10), 0, 1)); for (let x = Math.floor(nc - NW); x <= nc + NW; x++) { const r = (x - nc) / NW; P.set(x, y, ramp(S, 1.1 + r * 0.8 + (y < yC + 4 ? 1 - (y - yC + 1) / 6 : 0) * 1.2)); } }
   // ----- 옷깃 -----
   const of = o.outfit || 'tee';
   const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = BX - w; x <= BX + w; x++) P.set(x, y, x > BX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(BX - w - 1, y, col); P.set(BX - w - 2, y, col2 || col); P.set(BX + w + 1, y, col); P.set(BX + w + 2, y, col2 || col); } };
@@ -315,10 +316,15 @@ function realHuman(o, st) {
   if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = BX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - BX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(BX - 26, yN + 22, 52, 3, '#2e381c'); }
   if (of === 'police') { P.rect(BX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(BX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(BX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(BX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(BX + 14, yN + 22, 10, 2, '#9fb8e8'); }
   // ----- 얼굴 -----
-  for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = S[1]; if (r > 0.45) c = S[2]; if (r > 0.82) c = S[3]; if (r < -0.82) c = S[2]; if (y > yC - 4) c = r > 0 ? S[3] : S[2]; if (y < yT + 15 && r < -0.15 && r > -0.7) c = S[0]; P.set(x, y, c); } }
-  for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) P.set(CX - 12 + x, E + 6 + y, S[0]);
+  for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) {
+    const r = (x - CX) / w, v = (y - yT) / (yC - yT);
+    let f = 1.0 + r * 0.75 + Math.pow(Math.abs(r), 4) * 1.1 + Math.max(0, v - 0.86) * 7 * (0.6 + Math.max(0, r));
+    f -= Math.max(0, 0.35 - Math.abs(v - 0.3)) * Math.max(0, 0.6 - Math.abs(r + 0.35)) * 2.4; // 이마·광대 하이라이트
+    f += Math.max(0, 0.12 - Math.abs(v - 0.62)) * Math.max(0, Math.abs(r) - 0.55) * 8; // 볼 아래 음영
+    P.set(x, y, ramp(S, f));
+  } }
   // 귀
-  for (let y = E - 2; y < E + 9; y++) { const k = 1 - Math.abs((y - E - 3) / 6); P.set(CX - FW - 1, y, S[2]); if (k > 0.3) P.set(CX - FW - 2, y, S[1]); P.set(CX + FW + 1, y, S[3]); if (k > 0.3) P.set(CX + FW + 2, y, S[3]); }
+  for (let y = E - 2; y < E + 9; y++) { const k = 1 - Math.abs((y - E - 3) / 6), wl = fw(y); P.set(CX - wl - 1, y, S[2]); if (k > 0.3) P.set(CX - wl - 2, y, S[1]); if (k > 0.6) P.set(CX - wl - 3, y, S[2]); P.set(CX + wl + 1, y, S[3]); if (k > 0.3) P.set(CX + wl + 2, y, S[3]); if (k > 0.6) P.set(CX + wl + 3, y, S[4]); }
   // 눈
   const EX = child ? 8 : 7.5, look = st.look || 0, iris = o.eyes || '#3a2618';
   const eye = (ex, side) => {
@@ -388,6 +394,21 @@ function realHuman(o, st) {
   pose.forEach((p, i) => limb(P, i ? k.sr : k.sl, k.sy, p[0], p[1], p[2], p[3], armS, S, short));
   if (o.drawAct) o.drawAct(P, st, k, pose);
   return P.done();
+}
+// Scale2x(EPX)를 두 번 적용해 4배로 키움: 머리카락·윤곽선의 계단 모양을 부드럽게
+function scale2x(src) {
+  const w = src.width, h = src.height, sd = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const g = c.getContext('2d'); const od = g.createImageData(w * 2, h * 2), o = od.data;
+  const px = (x, y) => { x = x < 0 ? 0 : x >= w ? w - 1 : x; y = y < 0 ? 0 : y >= h ? h - 1 : y; return (y * w + x) * 4; };
+  const same = (a, b) => sd[a] === sd[b] && sd[a + 1] === sd[b + 1] && sd[a + 2] === sd[b + 2] && sd[a + 3] === sd[b + 3];
+  const put = (x, y, i) => { const k = (y * w * 2 + x) * 4; o[k] = sd[i]; o[k + 1] = sd[i + 1]; o[k + 2] = sd[i + 2]; o[k + 3] = sd[i + 3]; };
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const P = px(x, y), A = px(x, y - 1), B = px(x + 1, y), C = px(x - 1, y), D = px(x, y + 1);
+    let e0 = P, e1 = P, e2 = P, e3 = P;
+    if (!same(A, D) && !same(C, B)) { if (same(C, A)) e0 = A; if (same(A, B)) e1 = B; if (same(C, D)) e2 = C; if (same(D, B)) e3 = D; }
+    put(x * 2, y * 2, e0); put(x * 2 + 1, y * 2, e1); put(x * 2, y * 2 + 1, e2); put(x * 2 + 1, y * 2 + 1, e3);
+  }
+  g.putImageData(od, 0, 0); return c;
 }
 function limb(P, sx, sy, ex, ey, hx, hy, sl, sk, short) {
   // 위팔
@@ -483,6 +504,7 @@ function portrait(k, st) {
   let img;
   if (k === 'ai') img = robotAIImg(st); else if (k === 'dog') img = robotDogImg(st);
   else img = realHuman(CHAR[k] || CHAR.adult, st);
+  img = scale2x(scale2x(img)); img.base = 96;
   return PORTRAITS[key] = img;
 }
 // 현재 시간에 맞는 표정/동작 상태
@@ -495,10 +517,12 @@ function portraitState(k, talking) {
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
 function drawPortrait(k, x, y, s, crop, talking) {
-  const st = portraitState(k, talking), img = portrait(k, st), h = crop || img.height;
-  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180;
-  if (tl) { ctx.save(); ctx.translate(x + img.width * s / 2, y + by + h * s); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -img.width * s / 2, -h * s, img.width * s, h * s); ctx.restore(); }
-  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
+  const st = portraitState(k, talking), img = portrait(k, st), q = img.width / (img.base || img.width), h = (crop || 144) * q;
+  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180, dw = 96 * s, dh = h / q * s;
+  const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  if (tl) { ctx.save(); ctx.translate(x + dw / 2, y + by + dh); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -dw / 2, -dh, dw, dh); ctx.restore(); }
+  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, dw, dh);
+  ctx.imageSmoothingEnabled = sm;
 }
 
 // ===================== 그림 (배경·캐릭터 스프라이트) =====================
@@ -557,6 +581,16 @@ function house(c, x, y, w, roof, wall) {
   R(c, x + 6, y + 8, 8, 8, '#7ec8f0'); R(c, x + w - 16, y + 10, 8, 16, '#7a4a2a'); R(c, x + 9, y + 8, 1, 8, '#fff'); R(c, x + 6, y + 11, 8, 1, '#fff');
 }
 
+// 먼 아파트(건물) 줄: 바닥 y, 높이 배율, 색, 밤이면 불 켜진 창문
+function aptRow(c, y, k, col, night, seed, x0, x1, lit) {
+  const r = seeded(seed || 9); let x = x0 == null ? -6 : x0; x1 = x1 == null ? LW : x1;
+  while (x < x1) {
+    const w = 16 + Math.floor(r() * 10), h = Math.floor((30 + r() * 26) * k);
+    R(c, x, y - h, w, h, col); R(c, x, y - h - 2, w, 2, col);
+    for (let yy = y - h + 4; yy < y - 3; yy += 5) for (let xx = x + 2; xx < x + w - 3; xx += 4) { const v = r(); R(c, xx, yy, 2, 2, night ? (v > (lit || 0.55) ? '#f2d27a' : '#00000030') : '#ffffff40'); }
+    x += w + 3 + Math.floor(r() * 8);
+  }
+}
 // 배경 사물을 캐릭터 크기에 맞게 줄여 그리기 (ax, ay: 바닥 기준점)
 function prop(c, ax, ay, k, fn) { c.save(); c.translate(ax, ay); c.scale(k, k); c.translate(-ax, -ay); fn(); c.restore(); }
 // 홍산 야르 초등학교 (x: 왼쪽, y: 바닥)
@@ -591,7 +625,9 @@ function bgVillage(c, t, st) {
   // AI
   let ax = 236; if (st.flee) { st.fx = (st.fx || 0) + 1; ax += Math.min(400, (t - st.flee) * 160); }
   if (ax < 480) spr(c, SPR.ai[st.flee ? ((t * 8 | 0) % 2) : 0], ax, 192 + (st.flee ? 0 : Math.round(Math.sin(t * 3))), false);
-  if (st.live) { R(c, 360, 170, 8, 13, '#222'); R(c, 361, 171, 6, 10, '#6ad1ff'); if ((t * 2 | 0) % 2) R(c, 362, 172, 2, 2, '#f33'); }
+  // 어린이가 손에 든 아이폰 (AI 쪽으로 들고 촬영), 천재는 귀에 갤럭시폰
+  if (st.live) { R(c, 359, 205, 4, 3, '#36b0e8'); R(c, 357, 205, 3, 3, '#f2c9a0'); R(c, 356, 198, 5, 8, '#e8e8ec'); R(c, 357, 199, 3, 6, '#2a2a30'); if ((t * 2 | 0) % 2) R(c, 359, 199, 1, 1, '#f33'); }
+  if (st.call) { R(c, 344, 205, 2, 4, '#ffffff'); R(c, 343, 202, 3, 3, '#f2c9a0'); R(c, 343, 197, 2, 6, '#1a1a2a'); }
   if (st.police) { const px = Math.min(180, -20 + (t - st.police) * 120); spr(c, SPR.police[px < 180 ? (t * 6 | 0) % 2 : 0], px, 196); R(c, 10, 196, 30, 16, '#fff'); R(c, 10, 196, 30, 4, '#2a3d6e'); R(c, 18, 192, 6, 4, (t * 4 | 0) % 2 ? '#f33' : '#33f'); R(c, 12, 210, 6, 6, '#222'); R(c, 32, 210, 6, 6, '#222'); }
   c.restore();
 }
@@ -666,8 +702,8 @@ function Stairs(cfg) {
     if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); build(); return; }
     if (mode === 'play' && k === 'e') { if (!paused) { paused = true; SFX.click(); } else { paused = false; cd = 3; SFX.click(); } return; }
     if (mode !== 'play' || paused || cd > 0) return;
-    if (k === 'a') { started = true; climb(); }
-    if (k === 'd') { started = true; face = -face; SFX.turn(); if (cfg.turnClimbs) climb(); }
+    if (k === 'd') { started = true; climb(); }
+    if (k === 'a') { started = true; face = -face; SFX.turn(); if (cfg.turnClimbs) climb(); }
   };
   S.click = (x, y) => {
     if (mode === 'play' && inside(x, y, PB2)) { S.key('e'); return; }
@@ -736,7 +772,7 @@ function PoliceIntro() {
   const v = bgVillage;
   return Cutscene([
     { n: '', t: '평화로운 홍산 야르 동네. 그런데 한 AI가 큰 소리로 외치기 시작했다.', bg: v },
-    { n: 'AI', p: 'ai', t: "동네 사람들!!! 닌텐도가 조선시대(1889년)에 만들어졌고, 그리고 두번째로는 지구에서 가장 큰 생명체는 고래가 아니라 '버섯'이라고 해요!" },
+    { n: 'AI', p: 'ai', t: "동네 사람들!!! 닌텐도가 조선시대(1889년 26대 왕 고종 때) 만들어 졌고, 두번째로는 지구에서 가장 큰 생명체는 고래가 아니라 '버섯'이라고 해요!" },
     { n: N_FOOL, p: 'fool', r: 1, t: '뭐라고? 진짜야? 동네 사람들 AI가 말한 게 진짜에요!!!!!!', fx: st => st.buzz = 1 },
     { n: N_GRAN, p: 'granny', r: 1, t: '진짜!?' },
     { n: N_ADULT, p: 'adult', r: 1, t: '에이, 그걸 누가 믿어?' },
@@ -744,7 +780,7 @@ function PoliceIntro() {
     { n: 'AI', p: 'ai', t: 'ㄴ, 네!? 하지만... 이건 과학적으로 입증된 사실인걸요...?' },
     { n: '', t: '(홍산 야르 동네 어린이는 AI의 말을 무시한다.)' },
     { n: N_KID, p: 'kid', r: 1, t: 'AI라 그런가? 사실인지 확인해 보지도 않고 아무 데서나 떠벌리고 다니네! ㅋㅋㅋ', fx: st => st.live = 1 },
-    { n: '', t: '(어린이는 핸드폰으로 라이브 방송을 켜서 AI를 찍는다. 홍산 야르 동네 천재는 핸드폰으로 112에 전화를 건다.)' },
+    { n: '', t: '(어린이는 아이폰으로 라이브 방송을 켜서 AI를 찍는다. 홍산 야르 동네 천재는 갤럭시폰으로 112에 전화를 건다.)', fx: st => st.call = 1 },
     { n: N_GEN, p: 'genius', r: 1, t: '여보세요? 여기 AI가 허위 사실을 유포하고 다녀요!' },
     { n: 'AI', p: 'ai', t: '아... 아니, 그게 아니라...' },
     { n: '', t: '(잠시 후, 경찰이 도착했다.)', fx: st => st.police = st.t || 0.001 },
@@ -752,7 +788,7 @@ function PoliceIntro() {
     { n: N_GEN, p: 'genius', r: 1, t: '네, 맞아요! 저 AI가 말도 안 되는 것들을 함부로 지껄이고 다녔다고요! 당장 잡아가 주세요!' },
     { n: '', t: '(AI는 "잡아가 주세요"라는 말을 듣고는, 겁에 질려 도망치기 시작한다.)', fx: st => st.flee = st.t || 0.001 },
     { n: '홍산 야르 동네 바보 남학생', p: 'boy', r: 1, t: '진짜인데 다들 왜그래요. 다들 이상하네.' },
-    { n: '홍산 야르 동네 여학생', p: 'girl', r: 1, t: '니가 더 이상해. 너 기본적으로 판단력이 좀 저하되어 있어? 지능을 홍산마켓에 팔고 온 건가? 며칠 전에 나한테 뻐큐 날리면서 영역전개 어쩌고 하던 때부터 이상하더라. 너, 한 번만 더 개소리 하면 안드로메다로 날려버린다?' },
+    { n: '홍산 야르 동네 여학생', p: 'girl', r: 1, t: '니가 더 이상해. 너 기본적으로 판단력이 좀 저하되어 있어? 지능을 홍산마켓에 팔고 온 건가? 며칠 전에 나한테 중지 날리면서 영역전개 어쩌고 하던 때부터 이상하더라. 너, 한 번만 더 강아지 소리 하면 안드로메다로 날려버린다?' },
     { n: '', t: '(홍산 야르 동네 바보 남학생과 여학생은 싸우고 있고, 시민들은 AI 때문에 웅성웅성 거린다.)' },
     { n: '', t: '경찰(플레이어)은 도망친 AI를 쫓아가다가 산으로 올라가게 되었다!', bg: (c, t) => bgMountain(c, t, 0) },
   ], () => PoliceStage1());
@@ -761,7 +797,7 @@ function PoliceIntro() {
 function PoliceStage1() {
   return Stairs({ overMsg: 'AI를 체포하지 못했어요.',
     title: '1 스테이지 · 산을 올라라!', hero: SPR.police, bg: bgMountain, stepCol: ['#b8a890', '#7a6a58'], turnClimbs: true,
-    controls: [['A', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기'], ['D', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기']],
+    controls: [['A', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기'], ['D', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기']],
     onClear: () => PoliceStage1Clear(),
   });
 }
@@ -783,7 +819,7 @@ function cableCar(c, x, y, roof, body) {
 function bgCable(c, t, st, dusk) {
   if (dusk) sky(c, '141c4a', '6a4a8a'); else sky(c, '7ab8ff', 'ffe2b8');
   if (dusk) for (let i = 0; i < 25; i++) R(c, (i * 97) % LW, (i * 41) % 100, 1, 1, '#fff9');
-  hills(c, 150, 40, dusk ? '#2a2a5a' : '#8aa8c8', 2, 0, 3); hills(c, 190, 26, dusk ? '#1f2448' : '#5f8a6a', 6, 0, 3);
+  hills(c, 150, 40, dusk ? '#2a2a5a' : '#8aa8c8', 2, 0, 3); aptRow(c, 200, 1, dusk ? '#2a3058' : '#9aa8bc', dusk, 31, 250, LW); hills(c, 190, 26, dusk ? '#1f2448' : '#5f8a6a', 6, 0, 3);
   for (let i = 0; i < 8; i++) tree(c, (i * 67) % LW, 175 - (i % 3) * 5, 1.1, dusk ? '#1a2a2a' : '#3f6a48');
   // 케이블: 왼쪽 아래 → 오른쪽 위
   c.strokeStyle = '#333'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, 190); c.lineTo(LW, 20); c.stroke();
@@ -819,7 +855,7 @@ function itemSpr(k) {
 }
 const ITEMS = [0, 1, 2, 3].map(itemSpr);
 function PoliceStage2() {
-  const S = {}; const LX = [150, 240, 330], GOAL = 10;
+  const S = {}; const LX = [150, 240, 330], GOAL = 15;
   let lane = 1, px = 240, hearts = 3, dodged = 0, objs = [], nextT = 1.6, mode = 'howto', windup = -1, shake = 0, flash = 0, endT = 0, warn = [];
   function spawn() {
     const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
@@ -854,7 +890,7 @@ function PoliceStage2() {
     const sx = shake > 0 ? rnd(-3, 3) : 0;
     L.clearRect(0, 0, LW, LH); L.save(); L.translate(sx, 0);
     sky(L, '7ab8ff', 'ffd8a8');
-    hills(L, 120, 30, '#8aa8c8', 2, S.t * 3, 3); hills(L, 150, 20, '#5f8a6a', 6, S.t * 6, 3);
+    hills(L, 120, 30, '#8aa8c8', 2, S.t * 3, 3); L.save(); L.translate(-Math.min(S.t * 3, 600), 0); aptRow(L, 150, 0.9, '#a2b0c4', false, 31, 0, LW + 620); L.restore(); hills(L, 150, 20, '#5f8a6a', 6, S.t * 6, 3);
     for (let i = 0; i < 10; i++) tree(L, ((i * 53 - S.t * 30) % 520 + 520) % 520 - 30, 140 + (i % 3) * 6, 1, '#3f6a48');
     // 케이블 (원근)
     L.strokeStyle = '#333'; L.beginPath(); L.moveTo(240, 0); L.lineTo(238, 270); L.stroke(); L.beginPath(); L.moveTo(244, 0); L.lineTo(250, 270); L.stroke();
@@ -888,7 +924,7 @@ function PoliceStage2() {
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
       T('2 스테이지 · 케이블카 위의 추격', W / 2, 135, 36, '#3a2a1a', 'center');
       [['A', '왼쪽으로 한 칸 이동'], ['D', '오른쪽으로 한 칸 이동']].forEach((s, i) => { box(W / 2 - 280, 175 + i * 74, 70, 58, '#3a2a1a', '#ffe08a', 3); T(s[0], W / 2 - 245, 206 + i * 74, 32, '#ffe08a', 'center'); T(s[1], W / 2 - 190, 206 + i * 74, 24, '#3a2a1a', 'left', FONT_TX); });
-      T('AI가 던지는 물건을 10번 피하면 클리어! 빨간 표시가 뜬 칸을 피하세요.', W / 2, 355, 20, '#7a4a1a', 'center', FONT_TX);
+      T('AI가 던지는 물건을 15번 피하면 클리어! 빨간 표시가 뜬 칸을 피하세요.', W / 2, 355, 20, '#7a4a1a', 'center', FONT_TX);
       if ((S.t * 2 | 0) % 2) T('스페이스 또는 클릭으로 시작 ▶', W / 2, 410, 24, '#3a2a1a', 'center');
     }
     if (mode === 'clear') T('성공!', W / 2, 220, 70, '#ffe08a', 'center', FONT_UI, '#000');
@@ -927,6 +963,7 @@ function bgGarden(c, t, st) {
   sky(c, '05081a', '1a1f3a');
   for (let i = 0; i < 40; i++) R(c, (i * 89) % LW, (i * 31) % 120, 1, 1, i % 3 ? '#fff6' : '#fff');
   R(c, 390, 24, 20, 20, '#e8e8c8'); R(c, 386, 28, 4, 12, '#e8e8c8'); R(c, 394, 22, 12, 2, '#e8e8c8');
+  aptRow(c, 150, 1.4, '#0e1226', true, 57, null, null, 0.88);
   // 높게 솟은 나무 실루엣
   for (let i = 0; i < 12; i++) { const x = i * 42 - 10, h = 90 + (i * 37 % 40); R(c, x + 14, 190 - h, 6, h, '#0a0f14'); c.fillStyle = '#0c1a14'; c.beginPath(); c.moveTo(x, 200 - h * 0.5); c.lineTo(x + 17, 120 - h); c.lineTo(x + 34, 200 - h * 0.5); c.fill(); }
   // 미로 정원 생울타리
@@ -1012,9 +1049,16 @@ function PoliceStage3() {
     mz = braid(makeMaze(9, 9, r), r); map = mz.m; TW = mz.TW; TH = mz.TH;
     map[TH - 2][TW - 1] = 2;
     // 깜빡이는 랜턴: 길 위 칸에 흩어 배치
+    // 랜턴: 길이 꺾이는 코너 칸의 구석(벽 쪽)에만 놓아서 이동을 방해하지 않게
     lan = []; const cells = [];
-    for (let y = 1; y < TH - 1; y += 2) for (let x = 1; x < TW - 1; x += 2) if (map[y][x] === 0 && x + y > 4) cells.push([x, y]);
-    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x: x + 0.5, y: y + 0.5, ph: r() * 10, f: 3 + r() * 5, b: 1 }); }
+    for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) {
+      if (map[y][x] !== 0 || x + y < 4) continue;
+      const o = mz.D.filter(([dx, dy]) => map[y + dy][x + dx] === 0);
+      if (o.length !== 2 || (o[0][0] === -o[1][0] && o[0][1] === -o[1][1])) continue;
+      const wx = -(o[0][0] + o[1][0]), wy = -(o[0][1] + o[1][1]); // 벽이 있는 구석 방향
+      cells.push([x + 0.5 + wx * 0.34, y + 0.5 + wy * 0.34]);
+    }
+    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x, y, on: r() < 0.6, tm: 1 + r() * 6, tr: 0, b: 1 }); }
     reset();
   }
   function reset() { px = 1.5; py = 1.5; pa = 0; ta = 0; pol = { state: 'hidden', t: rnd(1.5, 4), x: 0, y: 0, tx: 0, ty: 0, path: 0, chase: 0 }; }
@@ -1049,7 +1093,7 @@ function PoliceStage3() {
   S.enter = setup;
   S.update = dt => {
     modeT += dt;
-    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('이런, 경찰에게 체포당했어요.', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); mode = 'play'; modeT = 0; } return; }
+    if (mode === 'caught') { if (modeT > 2) { if (caught >= 5) { mode = 'over'; go(Notice('이런, 경찰에게 체포당했어요.', '실패! 메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' })); return; } reset(); safeT = 0; mode = 'play'; modeT = 0; } return; }
     if (mode === 'clear') { if (modeT > 1.5) { mode = 'done'; go(PoliceEnding()); } return; }
     if (mode !== 'play') return;
     // 플레이어
@@ -1063,7 +1107,12 @@ function PoliceStage3() {
     }
     if (mode === 'play' && Math.hypot(px - (TW - 0.5), py - (TH - 1.5)) < 1.0) { mode = 'clear'; modeT = 0; SFX.clear(); }
     // 랜턴 깜빡임
-    for (const o of lan) { o.b = 0.75 + 0.25 * Math.sin(S.t * o.f + o.ph); if (Math.random() < 0.012) o.off = rnd(0.05, 0.25); if (o.off > 0) { o.off -= dt; o.b = 0.15; } }
+    // 5~7초마다 꺼졌다 켜졌다를 반복, 바뀔 때는 몇 번 깜빡임
+    for (const o of lan) {
+      o.tm -= dt; if (o.tm <= 0) { o.on = !o.on; o.tm = rnd(5, 7); o.tr = 0.9; }
+      if (o.tr > 0) { o.tr -= dt; o.b = ((o.tr * 12) | 0) % 2 ? 1 : 0.08; }
+      else o.b = o.on ? 0.92 + 0.08 * Math.sin(S.t * 6 + o.x) : 0.04;
+    }
     // 안전지대: 시작 지점에 머문 시간이 누적 1분을 넘으면 비활성화되고 경찰이 위치를 감지
     const here = inSafe();
     if (here && safeOn()) { safeT += dt; if (!safeOn()) { safeMsg = 3; SFX.bad(); } }
@@ -1100,7 +1149,13 @@ function PoliceStage3() {
     const r0x = dirX - plX, r0y = dirY - plY, r1x = dirX + plX, r1y = dirY + plY;
     for (let y = 0; y < RH; y++) {
       if (y < RH / 2) {
-        for (let x = 0; x < RW; x++) { const i = (y * RW + x) * 4; const ca = pa + Math.atan((2 * x / RW - 1) * 0.66); const st = hsh(Math.floor(ca * 120) & 1023, y) < 0.004; const b = 6 + y * 0.12; buf[i] = st ? 200 : b * 0.6; buf[i + 1] = st ? 200 : b * 0.7; buf[i + 2] = st ? 220 : b + 10; buf[i + 3] = 255; }
+        for (let x = 0; x < RW; x++) {
+          const i = (y * RW + x) * 4; const ca = pa + Math.atan((2 * x / RW - 1) * 0.66);
+          // 멀리 보이는 건물 실루엣 (창문 몇 개에 불)
+          const sg = Math.floor(ca * 7), bh = 12 + hsh(sg & 1023, 7) * 30;
+          if (y > RH / 2 - bh && hsh(sg & 1023, 3) > 0.25) { const win = (y & 3) < 2 && (Math.floor(ca * 70) & 1) && hsh(Math.floor(ca * 70) & 4095, y >> 2) > 0.8; buf[i] = win ? 120 : 12; buf[i + 1] = win ? 100 : 14; buf[i + 2] = win ? 50 : 24; buf[i + 3] = 255; continue; }
+          const st = hsh(Math.floor(ca * 120) & 1023, y) < 0.004; const b = 6 + y * 0.12; buf[i] = st ? 200 : b * 0.6; buf[i + 1] = st ? 200 : b * 0.7; buf[i + 2] = st ? 220 : b + 10; buf[i + 3] = 255;
+        }
         continue;
       }
       const p = y - RH / 2 + 0.5, rd = (RH / 2) / p;
@@ -1211,7 +1266,9 @@ function PoliceEnding() {
     { n: '', t: '(한편, 경찰서에서는…)', bg: bgStation },
     { n: '경찰', p: 'police', t: '에휴… 이번에도 실패했네.' },
     { n: '', t: '(경찰은 자신의 자리로 돌아가, 컴퓨터 전원을 켠다. 그런데, 컴퓨터가 제멋대로 작동하더니, 어떤 영상이 재생된다.)', fx: st => st.on = st.t || 0.001 },
-    { n: '경찰', p: 'police', t: '…뭐야. 해킹인가?', fx: st => st.video = st.t || 0.001 },
+    { n: '경찰', p: 'police', t: '…뭐야. 해킹인가? AI 대체 뭘 하려는 거야. 이상한 AI네.', fx: st => st.video = st.t || 0.001 },
+    { n: 'AI (영상)', p: 'ai', t: '제 말은 전부 사실이에요! 닌텐도는 1889년, 조선 26대 왕 고종 때 화투를 만드는 회사로 시작했어요. 이게 그 증거인 닌텐도 화투예요!', fx: st => st.p1 = 1 },
+    { n: 'AI (영상)', p: 'ai', t: '그리고 지구에서 가장 큰 생명체는 고래가 아니라, 미국 오리건주 숲 땅속에 넓게 퍼져 있는 거대한 꿀버섯이에요. 넓이가 무려 9.6㎢나 된답니다!', fx: st => st.p2 = 1 },
     { n: '', t: '(그 영상은 바로, AI가 자신이 말했던 것들은 전부 사실이라는 말과 함께, 증거를 보여주고 있는 영상이었다.)', fx: st => st.proof = st.t || 0.001 },
   ], () => Ending('탈출 성공!', 'AI가 말한 두 가지는 모두 사실이었어요.\n닌텐도는 1889년 화투 회사로 시작했고, 가장 큰 생명체는 미국 오리건 숲의 거대한 꿀버섯이에요.\n하지만 마을 사람들은 확인해 보지 않고 거짓이라고 단정했죠.\nAI의 말이든 사람의 말이든, 믿기 전에 사실인지 확인해 보는 습관이 중요해요!', '#ffe08a', bgFree));
 }
@@ -1238,11 +1295,14 @@ function bgStation(c, t, st) {
     else {
       spr(c, SPR.ai[0], sx + 2, sy + 9, false, 0.7);
       c.fillStyle = '#4ef0ff'; c.font = 'bold 3px sans-serif'; c.fillText('제 말은 전부 사실이에요!', sx + 15, sy + 5);
-      if (st.proof) {
-        R(c, sx + 15, sy + 8, 12, 10, '#f4ead2'); R(c, sx + 16, sy + 9, 10, 8, '#c8302c'); R(c, sx + 19, sy + 11, 4, 3, '#f4ead2'); c.fillStyle = '#fff'; c.font = '3px sans-serif'; c.fillText('1889 닌텐도', sx + 14, sy + 22);
-        R(c, sx + 36, sy + 13, 3, 5, '#e8dcc0'); R(c, sx + 32, sy + 9, 11, 5, '#c87a3a'); c.fillText('꿀버섯 9.6㎢', sx + 31, sy + 22);
-        c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 18, sy + 27);
+      c.font = '3px sans-serif';
+      if (st.p1) { // 화투 (송학: 소나무와 학, 붉은 해)
+        R(c, sx + 15, sy + 7, 9, 13, '#f4ead2'); R(c, sx + 16, sy + 8, 7, 11, '#d8342c'); c.fillStyle = '#f2a03a'; c.beginPath(); c.arc(sx + 21, sy + 11, 1.6, 0, 7); c.fill();
+        R(c, sx + 16, sy + 15, 4, 1, '#1a3a1a'); R(c, sx + 17, sy + 14, 2, 1, '#1a3a1a'); R(c, sx + 18, sy + 16, 1, 3, '#3a2a1a'); R(c, sx + 20, sy + 15, 2, 2, '#ffffff'); R(c, sx + 21, sy + 14, 1, 1, '#d8342c');
+        c.fillStyle = '#fff'; c.fillText('닌텐도 화투', sx + 12, sy + 23);
       }
+      if (st.p2) { R(c, sx + 37, sy + 13, 3, 5, '#e8dcc0'); R(c, sx + 33, sy + 9, 11, 5, '#c87a3a'); R(c, sx + 35, sy + 10, 2, 1, '#f2c890'); c.fillStyle = '#fff'; c.fillText('꿀버섯 9.6㎢', sx + 31, sy + 23); }
+      if (st.proof) { c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 18, sy + 27); }
     }
   }
   // 의자 + 경찰
@@ -1445,7 +1505,7 @@ function DogAfter1() {
 function DogStage2() {
   return Stairs({ overMsg: '주인을 찾지 못했어요.',
     title: '2 스테이지 · 회사 계단 오르기', hero: [SPR.dog[0], SPR.dog[1]], heroOff: [10, 16], bg: bgStairwell, stepCol: ['#9aa4a0', '#6a7470'], turnClimbs: true,
-    controls: [['A', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기'], ['D', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기']],
+    controls: [['A', '방향 바꾸기 + 동시에 한 칸 오르기', '방향 바꾸며 오르기'], ['D', '계단 한 칸 오르기 (누를 때마다 한 칸)', '오르기']],
     onClear: () => DogAfter2(),
   });
 }
@@ -1496,12 +1556,14 @@ function DogStage3() {
       if (m[y][x] === 0) { R(L, X, Y, TS, TS, (x + y) % 2 ? '#8e9cb0' : '#94a2b6'); continue; }
       const h = (x * 7 + y * 13) % 5;
       if (x === 0 || y === 0 || x === mz.TW - 1 || y === mz.TH - 1) { R(L, X, Y, TS, TS, '#d8d4c8'); R(L, X, Y + TS - 3, TS, 3, '#b8b4a8'); continue; }
-      R(L, X, Y, TS, TS, '#c8a878'); R(L, X, Y + TS - 3, TS, 3, '#9a7a4a');
-      if (h === 0) { R(L, X + 3, Y + 2, 10, 7, '#2a3446'); R(L, X + 4, Y + 3, 8, 5, '#4a7aa8'); }
-      else if (h === 1) { R(L, X + 4, Y + 4, 9, 7, '#f2f2f2'); R(L, X + 5, Y + 6, 6, 1, '#999'); }
-      else if (h === 2) { R(L, X + 5, Y + 3, 6, 8, '#3aa860'); R(L, X + 6, Y + 10, 4, 4, '#8a5a3a'); }
-      else if (h === 3) { R(L, X + 2, Y + 2, 14, 2, '#7a8a9a'); }
-      else { R(L, X + 10, Y + 4, 5, 6, '#e8e0d0'); R(L, X + 11, Y + 5, 3, 2, '#6a3a1a'); }
+      // 책상(칸 안쪽에 작게) + 강아지 크기에 맞춘 작은 소품
+      R(L, X, Y, TS, TS, (x + y) % 2 ? '#8e9cb0' : '#94a2b6');
+      R(L, X + 1, Y + 2, TS - 2, TS - 5, '#c8a878'); R(L, X + 1, Y + TS - 4, TS - 2, 2, '#9a7a4a');
+      if (h === 0) { R(L, X + 6, Y + 4, 6, 4, '#2a3446'); R(L, X + 7, Y + 5, 4, 2, '#4a7aa8'); R(L, X + 8, Y + 8, 2, 1, '#2a3446'); }
+      else if (h === 1) { R(L, X + 5, Y + 5, 5, 4, '#f2f2f2'); R(L, X + 11, Y + 6, 3, 3, '#f2f2f2'); }
+      else if (h === 2) { R(L, X + 7, Y + 4, 3, 4, '#3aa860'); R(L, X + 7, Y + 8, 3, 2, '#8a5a3a'); }
+      else if (h === 3) { R(L, X + 4, Y + 5, 9, 1, '#7a8a9a'); R(L, X + 4, Y + 8, 6, 1, '#7a8a9a'); }
+      else { R(L, X + 10, Y + 5, 3, 4, '#e8e0d0'); R(L, X + 11, Y + 6, 1, 1, '#6a3a1a'); }
     }
     // 주인 자리
     R(L, gx - 8, gy - 8, 16, 16, '#ffe08a'); const b = Math.sin(S.t * 5) * 2;
@@ -1718,18 +1780,23 @@ function bgShelter(c, t, st) {
   const dx = back ? 286 : 204, dw = back ? 30 : 72, dh = back ? 34 : 46, dy = 200 - dh;
   if (back) { R(c, dx - 4, dy - 12, dw + 8, 10, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 7, dy - 4); R(c, 70, 182, 18, 18, '#8a6a3a'); R(c, 72, 185, 14, 1, '#6a4a2a'); R(c, 90, 188, 13, 12, '#7a5a30'); R(c, 170, 192, 24, 8, '#4a4a52'); }
   else { R(c, 178, 122, 124, 16, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소', 198, 134); R(c, dx - 6, dy - 3, dw + 12, 3, '#4a4a42'); }
-  R(c, dx, dy, dw, dh, '#2a2a2a');
+  R(c, dx, dy, dw, dh, '#2a2a2a'); if (st.open) { const k = clamp((t - st.open) / 0.8, 0, 1); R(c, dx + 2, dy + 2, dw - 4, dh - 2, k > 0.5 ? '#e8d49a' : '#5a5040'); R(c, dx + 4, dy + dh - 6, dw - 8, 6, '#f2e2b0'); }
   const hw = dw / 2, close = st.close ? Math.max(0, 1 - (t - st.close) * 1.2) : 1, half = st.close ? hw * (1 - close) : 0;
   R(c, dx, dy, half, dh, '#5a6a5a'); R(c, dx + dw - half, dy, half, dh, '#5a6a5a');
   if (half > 4) { R(c, dx + half - 3, dy + dh * 0.45, 2, 8, '#333'); R(c, dx + dw - half + 1, dy + dh * 0.45, 2, 8, '#333'); }
   const fx = dx + dw / 2 - 26;
-  if (st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
+  if (st.fam && st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
   R(c, 0, 200, LW, 120, back ? '#7a7a72' : '#8a8a82');
   const sold = personSpr({ hat: 'helmet', shirt: '#5b6b3a', pants: '#3e4a26' }, 0);
   if (back) { spr(c, sold, dx + dw + 8, 178, true); R(c, dx + dw + 4, 188, 10, 2, '#222'); }
   else { spr(c, sold, dx - 22, 178, false); spr(c, sold, dx + dw + 6, 178, true); R(c, dx - 10, 188, 10, 2, '#222'); R(c, dx + dw + 2, 188, 10, 2, '#222'); }
   let gx = 236;
-  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
+  if (back) {
+    const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k);
+    // 해피엔딩: 열린 문 안으로 걸어 들어가기
+    const k2 = st.go ? clamp((t - st.go) / 1.6, 0, 1) : 0; if (st.go) gx = lerp(262, dx + dw / 2 - 8, k2);
+    if (k2 < 1) spr(c, SPR.dog[(k < 1 || (st.go && k2 < 1)) ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false);
+  }
   else spr(c, SPR.dog[0], gx, 186, false);
   c.restore();
 }
@@ -1821,13 +1888,38 @@ function SadEnding() {
     { n: '강아지 로봇', p: 'dog', t: '주인님...' },
   ], () => Ending('새드 엔딩', '강아지 로봇은 닫힌 문 앞에 홀로 남았어요...\n\n힌트: 1 스테이지 쓰레기 매립장 어딘가에\n가족의 소중한 물건이 숨어 있어요. 반짝이는 곳을 잘 보세요!', '#9ab4ff', (c, t) => bgShelter(c, t, { close: -10, back: 1 })));
 }
+// 대피소 안 (해피엔딩): 강아지 로봇이 들어와서 가족을 만난다
+function bgShelterIn(c, t, st) {
+  R(c, 0, 0, LW, LH, '#8a8a80'); R(c, 0, 105, LW, LH, '#a8a49a'); c.save(); c.translate(0, -45); for (let y = 0; y < 150; y += 16) R(c, 0, y, LW, 1, '#7a7a70');
+  for (let i = 0; i < 4; i++) { R(c, 40 + i * 120, 50, 50, 4, '#f4f4e8'); R(c, 40 + i * 120, 54, 50, 2, '#ffffff60'); }
+  R(c, 160, 70, 150, 20, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소 · 실내', 176, 84);
+  R(c, 14, 92, 34, 58, '#5a5040'); R(c, 17, 95, 28, 55, '#e8d49a');
+  R(c, 0, 150, LW, 170, '#a8a49a'); for (let x = 0; x < LW; x += 32) R(c, x, 150, 1, 170, '#98948a');
+  // 다른 대피 주민들, 담요와 간이침대
+  const cot = (x, y, col) => { R(c, x, y, 40, 8, col); R(c, x, y + 8, 40, 2, '#5a5a5a'); R(c, x + 2, y + 10, 2, 5, '#5a5a5a'); R(c, x + 36, y + 10, 2, 5, '#5a5a5a'); };
+  cot(70, 168, '#6a8ac8'); cot(130, 196, '#c86a6a'); cot(240, 172, '#6ac88a'); cot(90, 220, '#c8b86a');
+  spr(c, personSpr({ hair: '#6a6a6a', shirt: '#8a6a4a' }, 0), 80, 146); spr(c, personSpr({ hair: '#2a2a2a', shirt: '#4a7a9a' }, 0), 150, 174, true); spr(c, personSpr({ hair: '#d8d8d8', shirt: '#9b5fc0', pants: '#5a3a70' }, 0), 250, 150);
+  R(c, 200, 140, 30, 20, '#b89a6a'); R(c, 204, 136, 8, 6, '#e8e0d0'); R(c, 216, 134, 10, 8, '#4a7ad8');
+  // 가족
+  const fam = st.meet;
+  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 360, 172, true);
+  spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 400, 170, true);
+  spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, fam ? (t * 6 | 0) % 2 : 0), fam ? 336 + Math.sin(t * 6) * 3 : 384, fam ? 180 : 184, !fam);
+  // 강아지 로봇이 문에서 가족에게 달려감
+  const k = st.run ? clamp((t - st.run) / 2.4, 0, 1) : 0, x = lerp(22, 318, k);
+  spr(c, SPR.dog[k < 1 ? (t * 8 | 0) % 2 : 0], x, 190 - (k < 1 ? Math.abs(Math.sin(t * 10)) * 3 : 0), false);
+  if (fam) for (let i = 0; i < 3; i++) { const q = (t * 0.6 + i / 3) % 1; c.globalAlpha = 1 - q; R(c, 330 + i * 18, 170 - q * 40, 4, 3, '#ff6a8a'); R(c, 331 + i * 18, 169 - q * 40, 2, 1, '#ff6a8a'); c.globalAlpha = 1; }
+  c.restore();
+}
 function HappyEnding() {
   const B = (c, t, st) => { st.back = 1; bgShelter(c, t, st); };
   return Cutscene([
     { n: '', t: '강아지 로봇은 펜던트를 열어 군인들에게 보여주었다. 그 안에는 가족과 강아지 로봇이 함께 찍은 사진이 있었다.', bg: B },
     { n: '뒷문 군인', p: 'soldier', r: 1, t: '이 사진... 안에 있는 그 가족이 맞군. 진짜 가족이었구나.' },
     { n: '뒷문 군인', p: 'soldier', r: 1, t: '확인됐다. 문을 열어라!', fx: st => st.open = st.t || 0.001 },
-    { n: '예나', p: 'yena', r: 1, t: '우리 강아지다!!! 어떻게 여기까지 왔어?!' },
+    { n: '', t: '강아지 로봇은 열린 문을 지나 대피소 안으로 들어갔다.', fx: st => st.go = st.t || 0.001 },
+    { n: '', t: '대피소 안에는 폭풍을 피해 온 사람들이 가득했다. 강아지 로봇은 사람들 사이를 두리번거리며 가족을 찾았다. 그리고...', bg: bgShelterIn, fx: st => st.run = st.t || 0.001 },
+    { n: '예나', p: 'yena', r: 1, t: '우리 강아지다!!! 어떻게 여기까지 왔어?!', fx: st => st.meet = 1 },
     { n: '로미', p: 'romi', r: 1, t: '세상에... 그 먼 길을 혼자 찾아왔구나.' },
     { n: '주인', p: 'owner', r: 1, t: '펜던트를 아직도 가지고 있었구나. 고마워, 우리 가족이 다시 모였어.' },
     { n: '강아지 로봇', p: 'dog', t: '주인님! 드디어 찾았어요!' },
@@ -1856,12 +1948,16 @@ function bgMenu(c, t) {
 }
 function MainMenu() {
   const S = { noHome: true };
-  const B = [{ x: W / 2 - 230, y: 210, w: 460, h: 96, n: '경찰과 AI', s: '허위 사실을 퍼뜨린 AI를 잡아라!', go: () => PoliceIntro() },
-  { x: W / 2 - 230, y: 330, w: 460, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
+  const B = [{ x: W / 2 - 260, y: 210, w: 520, h: 96, n: '경찰과 AI', s: '허위 사실을 퍼뜨린 AI를 잡아라!', warn: '⚠ 공포 미로가 있으니 주의하세요.', go: () => PoliceIntro() },
+  { x: W / 2 - 260, y: 330, w: 520, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
   S.enter = () => { G.pendant = false; };
   S.click = (x, y) => B.forEach(b => { if (inside(x, y, b)) { SFX.ok(); go(b.go()); } });
   S.draw = () => {
     L.clearRect(0, 0, LW, LH); bgMenu(L, S.t); blitLo();
+    // 배경의 경찰이 AI를 쫓으며 외치는 말풍선
+    { const px = (60 + ((S.t * 40) % 420)) * 2, py = 228 * 2; if ((S.t % 3) < 2 && px < W - 60) {
+      const bx = px - 14, by = py - 50; box(bx, by, 112, 34, '#fff', '#222', 2); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(px + 10, by + 32); ctx.lineTo(px + 18, by + 32); ctx.lineTo(px + 12, by + 42); ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 10, by + 33); ctx.lineTo(px + 12, by + 42); ctx.lineTo(px + 18, by + 33); ctx.stroke();
+      T('거기 서라!', bx + 56, by + 18, 19, '#c81818', 'center'); } }
     T('우리가 만드는 강당 AI 과학 체험부스', W / 2, 80, 30, '#bcd0ff', 'center', FONT_UI, '#000');
     T('AI 어드벤처', W / 2, 140, 72, '#ffe08a', 'center', FONT_UI, '#2a1a00');
     B.forEach((b, i) => {
@@ -1869,6 +1965,7 @@ function MainMenu() {
       box(b.x, b.y + (h ? -4 : 0), b.w, b.h, h ? '#ffe08a' : '#2a2a5a', h ? '#fff' : '#9aa4c8', 5);
       drawPortrait(i ? 'dog' : 'police', b.x + 14, b.y + 8 + (h ? -4 : 0), 0.85, 94);
       T(b.n, b.x + 110, b.y + 36 + (h ? -4 : 0), 38, h ? '#2a1a00' : '#fff');
+      if (b.warn) T(b.warn, b.x + 268, b.y + 38 + (h ? -4 : 0), 17, h ? '#b01818' : '#ff8a8a', 'left', FONT_TX);
       T(b.s, b.x + 110, b.y + 72 + (h ? -4 : 0), 20, h ? '#5a3a10' : '#bcd0ff', 'left', FONT_TX);
     });
     T('마우스를 버튼에 가져다 대고 클릭하세요', W / 2, H - 30, 20, '#ccd', 'center');
