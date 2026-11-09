@@ -250,7 +250,7 @@ function portrait(k, st) {
   if (PORTRAITS[key]) return PORTRAITS[key];
   let img;
   if (k === 'ai') img = robotAIImg(st); else if (k === 'dog') img = robotDogImg(st);
-  else img = realHuman(CHAR[k] || CHAR.adult, st);
+  else { img = vecHuman(CHAR[k] || CHAR.adult, st); img.base = 96; return PORTRAITS[key] = img; }
   img = scale2x(scale2x(img)); img.base = 96;
   return PORTRAITS[key] = img;
 }

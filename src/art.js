@@ -77,7 +77,15 @@ function school(c, x, y, t) {
   R(c, x + 30, y - h - 1 + 0, 72, 0, '#000');
   R(c, x + 34, y - 18, 22, 4, '#2a5a3a'); R(c, x + 77, y - 18, 22, 4, '#2a5a3a');
   R(c, x + 28, y - h + 1, 76, 8, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.textAlign = 'center'; c.fillText('홍산 야르 초등학교', x + 66, y - h + 8); c.textAlign = 'left';
-  R(c, x + w + 6, y - h - 22, 1, h + 22, '#888'); const wv = Math.sin((t || 0) * 4) * 1; R(c, x + w + 7, y - h - 22, 10, 6 + wv, '#fff'); R(c, x + w + 10, y - h - 20, 3, 2, '#d83a3a');
+  R(c, x + w + 6, y - h - 26, 1, h + 26, '#888'); R(c, x + w + 5, y - h - 27, 3, 1, '#ccc');
+  // 태극기: 흰 바탕, 가운데 태극(위 빨강·아래 파랑), 네 귀퉁이 괘
+  { const fx = x + w + 7, fy = y - h - 26, fw = 16, fh = 11; R(c, fx, fy, fw, fh, '#ffffff'); R(c, fx, fy + fh, fw, 1, '#c8c8c8');
+    const cx = fx + fw / 2, cy = fy + fh / 2, r = 2.8;
+    c.fillStyle = '#cd2e3a'; c.beginPath(); c.arc(cx, cy, r, Math.PI, 0); c.fill();
+    c.fillStyle = '#0047a0'; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI); c.fill();
+    c.fillStyle = '#cd2e3a'; c.beginPath(); c.arc(cx - r / 2, cy, r / 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#0047a0'; c.beginPath(); c.arc(cx + r / 2, cy, r / 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#000'; [[fx + 1.5, fy + 1.2], [fx + fw - 3.5, fy + 1.2], [fx + 1.5, fy + fh - 3.4], [fx + fw - 3.5, fy + fh - 3.4]].forEach(([gx, gy]) => { for (let i = 0; i < 3; i++) c.fillRect(gx, gy + i * 0.8, 2, 0.5); }); }
   for (let i = -20; i < w + 30; i += 6) { R(c, x + i, y - 5, 1, 5, '#e8e8e8'); } R(c, x - 20, y - 4, w + 50, 1, '#e8e8e8');
 }
 

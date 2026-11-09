@@ -90,16 +90,20 @@ function PoliceStage3() {
     mz = braid(makeMaze(9, 9, r), r); map = mz.m; TW = mz.TW; TH = mz.TH;
     map[TH - 2][TW - 1] = 2;
     // 깜빡이는 랜턴: 길 위 칸에 흩어 배치
-    // 랜턴: 길이 꺾이는 코너 칸의 구석(벽 쪽)에만 놓아서 이동을 방해하지 않게
-    lan = []; const cells = [];
-    for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) {
-      if (map[y][x] !== 0 || x + y < 4) continue;
-      const o = mz.D.filter(([dx, dy]) => map[y + dy][x + dx] === 0);
-      if (o.length !== 2 || (o[0][0] === -o[1][0] && o[0][1] === -o[1][1])) continue;
-      const wx = -(o[0][0] + o[1][0]), wy = -(o[0][1] + o[1][1]); // 벽이 있는 구석 방향
-      cells.push([x + 0.5 + wx * 0.34, y + 0.5 + wy * 0.34]);
+    // 랜턴: 출발점 → 탈출구로 가는 길을 따라 놓아 길 안내 (꺾이는 곳은 바깥쪽 구석, 곧은 길은 벽 쪽)
+    lan = [];
+    { const sx = 1, sy = 1, ex = TW - 2, ey = TH - 2, prev = new Map([[sx + ',' + sy, null]]), q = [[sx, sy]];
+      while (q.length) { const [x, y] = q.shift(); if (x === ex && y === ey) break; for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (!prev.has(kk) && map[ny] && map[ny][nx] === 0) { prev.set(kk, [x, y]); q.push([nx, ny]); } } }
+      const path = []; let cur = [ex, ey]; while (cur) { path.unshift(cur); cur = prev.get(cur[0] + ',' + cur[1]); }
+      let straight = 0;
+      for (let i = 1; i < path.length; i++) {
+        const [x, y] = path[i], [px0, py0] = path[i - 1], ax = x - px0, ay = y - py0;
+        const nxt = path[i + 1] || [x + 1, y], bx = nxt[0] - x, by = nxt[1] - y;
+        if (ax !== bx || ay !== by) { lan.push({ x: x + 0.5 + (ax - bx) * 0.34, y: y + 0.5 + (ay - by) * 0.34 }); straight = 0; }
+        else if (++straight % 3 === 0) { const px1 = -ay, py1 = ax, sd = map[y + py1] && map[y + py1][x + px1] === 1 ? 1 : -1; lan.push({ x: x + 0.5 + px1 * sd * 0.36, y: y + 0.5 + py1 * sd * 0.36 }); }
+      }
+      lan.forEach((o, i) => Object.assign(o, { on: true, tm: 4 + (i % 4) * 0.8 + r() * 2, tr: 0, b: 1 }));
     }
-    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x, y, on: r() < 0.6, tm: 1 + r() * 6, tr: 0, b: 1 }); }
     reset();
   }
   function reset() { px = 1.5; py = 1.5; pa = 0; ta = 0; pol = { state: 'hidden', t: rnd(1.5, 4), x: 0, y: 0, tx: 0, ty: 0, path: 0, chase: 0 }; }
@@ -289,8 +293,8 @@ function PoliceStage3() {
       ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 340, 70, 680, 400, '#14141c', '#8a1a1a', 6);
       T('3 스테이지 · 어둠의 미로 정원', W / 2, 115, 38, '#ff6a6a', 'center');
-      [['W', '앞으로 이동 (누르고 있으면 계속, 떼면 멈춤)'], ['S', '뒤로 이동 (앞보다 조금 느림)'], ['A / D', '왼쪽 / 오른쪽으로 90도 회전']].forEach((s, i) => { box(W / 2 - 290, 150 + i * 70, 100, 54, '#2a0a0a', '#ff6a6a', 3); T(s[0], W / 2 - 240, 178 + i * 70, 28, '#ff9a9a', 'center'); T(s[1], W / 2 - 170, 178 + i * 70, 22, '#eee', 'left', FONT_TX); });
-      T('경찰을 피해 빛나는 탈출구를 찾으세요. 화면 위에 붉은 눈이 보이면 경찰이 가까이 있어요!', W / 2, 372, 19, '#ddd', 'center', FONT_TX); T('시작 지점은 안전지대예요. 단, 누적 1분이 지나면 사라져요. 경찰에게 5번 잡히면 실패!', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
+      [['W', '앞으로 이동 (누르고 있으면 계속, 떼면 멈춤)'], ['S', '뒤로 이동 (앞보다 조금 느림)'], ['A / D', '왼쪽 / 오른쪽으로 90도 회전']].forEach((s, i) => { box(W / 2 - 290, 140 + i * 62, 100, 50, '#2a0a0a', '#ff6a6a', 3); T(s[0], W / 2 - 240, 166 + i * 62, 28, '#ff9a9a', 'center'); T(s[1], W / 2 - 170, 166 + i * 62, 22, '#eee', 'left', FONT_TX); });
+      T('랜턴을 따라가세요. 랜턴이 빛나는 탈출구까지 길을 안내해요!', W / 2, 340, 22, '#ffd27a', 'center', FONT_TX); T('화면 위에 붉은 눈이 보이면 경찰이 가까이 있어요!', W / 2, 370, 19, '#ddd', 'center', FONT_TX); T('시작 지점은 안전지대(누적 1분 지나면 사라짐) · 경찰에게 5번 잡히면 실패!', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
       if ((S.t * 2 | 0) % 2) T('스페이스 또는 클릭으로 시작 ▶', W / 2, 440, 24, '#fff', 'center');
     }
     if (mode === 'caught') { ctx.fillStyle = 'rgba(160,0,0,.6)'; ctx.fillRect(0, 0, W, H); T('붙잡혔다!', W / 2, 230, 70, '#fff', 'center', FONT_UI, '#000'); T(caught >= 5 ? '5번 잡혔어요...' : '미로 입구에서 다시 시작해요 (잡힌 횟수 ' + caught + ' / 5)', W / 2, 300, 28, '#fff', 'center', FONT_UI, '#000'); }
