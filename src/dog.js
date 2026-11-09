@@ -20,10 +20,13 @@ SPR.dog = [dogSpr(0), dogSpr(1), dogSpr(2), dogSpr(0, 1)];
 function bgHome(c, t) {
   R(c, 0, 0, LW, LH, '#f6e2c0'); for (let x = 0; x < LW; x += 16) R(c, x, 0, 8, 150, '#f0d8b0');
   R(c, 0, 150, LW, 120, '#b07a4a'); for (let x = 0; x < LW; x += 40) R(c, x, 150, 2, 120, '#9a6a3a');
-  R(c, 300, 40, 90, 60, '#8fd0ff'); R(c, 343, 40, 4, 60, '#fff'); R(c, 300, 68, 90, 4, '#fff'); R(c, 296, 36, 98, 4, '#fff');
+  R(c, 310, 70, 54, 36, '#8fd0ff'); R(c, 336, 70, 2, 36, '#fff'); R(c, 310, 87, 54, 2, '#fff'); R(c, 307, 67, 60, 3, '#fff');
+  R(c, 330, 120, 20, 30, '#7a5a3a'); R(c, 326, 114, 28, 8, '#5a8a4a'); R(c, 120, 108, 4, 42, '#8a8a8a'); R(c, 114, 102, 16, 8, '#fff2c0');
+  prop(c, 80, 70, 0.6, () => {
   R(c, 60, 60, 40, 30, '#c8a86a'); R(c, 64, 64, 32, 22, '#ffe8c0'); [[68, 70, '#4a2a1a'], [78, 70, '#2a2018'], [88, 74, '#2a1a12']].forEach(([x, y, col]) => { R(c, x, y, 5, 5, col); R(c, x, y + 5, 5, 6, '#e88a9a'); });
-  R(c, 140, 120, 120, 30, '#c84a5a'); R(c, 140, 112, 120, 10, '#a83a4a');
-  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 150, 108); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 230, 108, true);
+  });
+  R(c, 158, 132, 84, 18, '#c84a5a'); R(c, 158, 124, 84, 9, '#a83a4a'); R(c, 154, 128, 6, 22, '#a83a4a'); R(c, 240, 128, 6, 22, '#a83a4a');
+  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 170, 116); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 214, 116, true);
   spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 4 | 0) % 2), 196 + Math.sin(t * 3) * 14, 140);
   spr(c, SPR.dog[(t * 6 | 0) % 2], 226 + Math.sin(t * 3 + 1) * 14, 148, Math.cos(t * 3 + 1) < 0);
   for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i / 3) % 1; c.globalAlpha = 1 - k; R(c, 200 + i * 20, 130 - k * 50, 4, 3, '#ff6a8a'); R(c, 201 + i * 20, 129 - k * 50, 2, 1, '#ff6a8a'); c.globalAlpha = 1; }
@@ -138,7 +141,7 @@ function DogStage1() {
     }
     if (mode === 'clear') T('탈출 성공!', W / 2, 220, 64, '#ffe08a', 'center', FONT_UI, '#000');
   };
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 // 펜던트 획득 화면 (3초)
 const PENDANT_IMG = mk(80, 48, p => {

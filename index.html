@@ -201,6 +201,37 @@ function Notice(title, body, next, opt) {
   return S;
 }
 
+// 공통 일시정지: E키(또는 좌측 상단 버튼)로 멈춤, 다시 누르면 화면을 먼저 보여 준 뒤 3초 카운트다운
+const PAUSE_BTN = { x: 132, y: 10, w: 126, h: 34 };
+function Pausable(S, playing) {
+  let paused = false, cd = 0;
+  const u = S.update, k = S.key, c = S.click, d = S.draw, md = S.mdown, wh = S.wheel;
+  const busy = () => paused || cd > 0;
+  S.isPaused = busy;
+  S.key = key => {
+    if (key === 'e' && playing()) { if (!paused && cd <= 0) { paused = true; SFX.click(); } else if (paused) { paused = false; cd = 3; SFX.click(); } return; }
+    if (busy()) return; k && k(key);
+  };
+  S.click = (x, y) => { if (playing() && inside(x, y, PAUSE_BTN)) { S.key('e'); return; } if (busy()) return; c && c(x, y); };
+  if (md) S.mdown = (x, y) => { if (busy() || (playing() && inside(x, y, PAUSE_BTN))) return; md(x, y); };
+  if (wh) S.wheel = (a, x, y) => { if (!busy()) wh(a, x, y); };
+  S.update = dt => {
+    if (paused) return;
+    if (cd > 0) { const b = Math.ceil(cd); cd -= dt; if (Math.ceil(cd) !== b && cd > 0) SFX.step(); return; }
+    u && u(dt);
+  };
+  S.draw = () => {
+    d();
+    if (!playing() && !busy()) return;
+    const h = inside(mouse.x, mouse.y, PAUSE_BTN) || paused;
+    box(PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.w, PAUSE_BTN.h, h ? '#ffe08a' : 'rgba(20,20,40,.75)', '#fff', 2);
+    T(paused ? '▶ 계속 (E)' : 'Ⅱ 멈춤 (E)', PAUSE_BTN.x + PAUSE_BTN.w / 2, PAUSE_BTN.y + 18, 18, h ? '#222' : '#fff', 'center');
+    if (paused) { ctx.fillStyle = 'rgba(0,0,30,.65)'; ctx.fillRect(0, 60, W, H - 60); T('일시 정지', W / 2, 230, 64, '#ffe08a', 'center', FONT_UI, '#000'); T('E 키를 다시 누르면 3초 뒤에 이어서 시작해요', W / 2, 300, 24, '#fff', 'center', FONT_TX, '#000'); }
+    else if (cd > 0) T(String(Math.ceil(cd)), W / 2, H / 2, 140, '#ffe08a', 'center', FONT_UI, '#000');
+  };
+  return S;
+}
+
 function GameOver(msg) {
   return Notice(msg || '하트를 모두 잃었어요', '메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' });
 }
@@ -252,9 +283,9 @@ function realHuman(o, st) {
   const H = shadeHair(o.hair || '#2b1d14');
   const yT = child ? 20 : 14, yC = child ? 68 : 70, FW = child ? 18 : fem ? 16 : 17.5;
   const yM = yT + 30, E = yT + 31;
-  const fw = y => { if (y < yT || y > yC) return -1; if (y <= yM) return FW * Math.sqrt(Math.max(0, 1 - Math.pow((yM - y) / (yM - yT + 3), 2))); const t = (y - yM) / (yC - yM); let w = FW * (1 - (fem || child ? 0.62 : 0.5) * t * t); if (t > 0.82) w *= 1 - (t - 0.82) * 2.6; return Math.max(2, w); };
-  const bob = st.breath || 0;
-  const SW = child ? 31 : fem ? 34 : old ? 37 : 40, yN = (child ? 80 : 82), yS = yN + 13;
+  const fw = y => { if (y < yT || y > yC) return -1; if (y <= yM) return FW * Math.sqrt(Math.max(0, 1 - Math.pow((yM - y) / (yM - yT + 3), 2))); const t = (y - yM) / (yC - yM); let w = FW * (1 - (fem || child ? 0.55 : 0.45) * t * t); if (t > 0.8) w *= 1 - (t - 0.8) * 2.2; return Math.max(2, w); };
+  const bob = st.breath || 0, BX = CX + (o.bodyX || 0);
+  const SW0 = child ? 31 : fem ? 34 : old ? 37 : 40, SW = SW0 - 7, yN = (child ? 80 : 82), yS = yN + 13;
   const bw = y => { if (y < yN - 2) return -1; if (y < yS) { const t = (y - yN + 2) / (yS - yN + 2); return 8 + (SW - 8) * Math.pow(Math.sin(t * Math.PI / 2), 0.7); } return SW + (y - yS) * 0.07; };
   const hairCol = (x, y) => { const n = (x * 3 + (y >> 2) * 5) % 9; if (y < yT + 7 && x > CX - 12 && x < CX - 2 && (x + y) % 3 === 0) return H[0]; return n === 0 ? H[3] : n === 4 ? H[1] : H[2]; };
   const style = o.style || 'short';
@@ -263,27 +294,26 @@ function realHuman(o, st) {
   if (style === 'pony') { const sw = st.act ? 2 : 0; for (let y = yT + 6; y < yT + 58; y++) { const k = (y - yT - 6) / 52, cx2 = CX + FW + 3 + sw * Math.sin(k * 3), r = 5 - k * 3; for (let x = cx2 - r; x <= cx2 + r; x++) P.set(x, y, hairCol(Math.round(x), y)); } }
   // ----- 몸 / 옷 -----
   const top = o.top || '#4a6fd6', topS = shadeHair(top);
-  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - CX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
-  for (let i = 0; i < 6; i++) { P.set(CX - SW + 11 + i, yS + 10 + i * 2, topS[3]); P.set(CX + SW - 11 - i, yS + 10 + i * 2, topS[4]); }
+  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
   // ----- 목 -----
   const NW = child || fem ? 6 : 7.5;
   for (let y = yC - 10; y < yN + 6; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, x > CX + 2 ? S[2] : S[1]);
   for (let y = yC - 1; y < yC + 4; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, S[3]);
   // ----- 옷깃 -----
   const of = o.outfit || 'tee';
-  const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = CX - w; x <= CX + w; x++) P.set(x, y, x > CX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(CX - w - 1, y, col); P.set(CX - w - 2, y, col2 || col); P.set(CX + w + 1, y, col); P.set(CX + w + 2, y, col2 || col); } };
-  if (of === 'tee') { for (let x = CX - NW - 1; x <= CX + NW + 1; x++) P.set(x, yN - 2 + Math.round(Math.pow((x - CX) / (NW + 1), 2) * -1 + 1), topS[3]); }
+  const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = BX - w; x <= BX + w; x++) P.set(x, y, x > BX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(BX - w - 1, y, col); P.set(BX - w - 2, y, col2 || col); P.set(BX + w + 1, y, col); P.set(BX + w + 2, y, col2 || col); } };
+  if (of === 'tee') { for (let x = BX - NW - 1; x <= BX + NW + 1; x++) P.set(x, yN - 2 + Math.round(Math.pow((x - BX) / (NW + 1), 2) * -1 + 1), topS[3]); }
   if (of === 'collar' || of === 'tie' || of === 'police' || of === 'school' || of === 'ribbon') {
     const sh = o.top2 || '#f4f4f8';
-    if (of !== 'collar') { for (let y = yN - 1; y < yN + 30; y++) { const w = 3 + (y - yN) * 0.45; for (let x = CX - w; x <= CX + w; x++) P.set(x, y, Math.abs(x - CX) > w - 1 ? '#00000040' : sh); } }
-    for (let i = 0; i < 7; i++) { P.line(CX - NW - 1, yN - 3, CX - 2, yN + 5, 3, sh); P.line(CX + NW + 1, yN - 3, CX + 2, yN + 5, 3, sh, '#c8c8d4'); }
-    if (of === 'tie' || of === 'police' || of === 'school') { const tc = o.tie || '#c8303c'; P.rect(CX - 2, yN + 3, 5, 4, shadeHair(tc)[3]); for (let y = yN + 7; y < yN + 36; y++) { const w = 1.5 + (y - yN - 7) * 0.06; for (let x = CX - w; x <= CX + w + 1; x++) P.set(x, y, x > CX ? shadeHair(tc)[3] : tc); } }
-    if (of === 'ribbon') { const rc = o.tie || '#d6324a'; for (let i = 0; i < 6; i++) { P.line(CX, yN + 7, CX - 7, yN + 3 + i, 2, rc); P.line(CX, yN + 7, CX + 7, yN + 3 + i, 2, rc, shadeHair(rc)[3]); } P.disc(CX, yN + 7, 2, shadeHair(rc)[3]); P.line(CX - 1, yN + 8, CX - 4, yN + 16, 2, rc); P.line(CX + 1, yN + 8, CX + 4, yN + 16, 2, rc); }
-    if (of === 'school' || of === 'police' || of === 'ribbon') { for (let y = yN - 1; y < yN + 42; y++) { const w = 4 + (y - yN) * 0.5; P.set(CX - w - 1, y, topS[4]); P.set(CX + w + 1, y, topS[4]); P.set(CX - w - 2, y, topS[1]); } }
+    if (of !== 'collar') { for (let y = yN - 1; y < yN + 30; y++) { const w = 3 + (y - yN) * 0.45; for (let x = BX - w; x <= BX + w; x++) P.set(x, y, Math.abs(x - BX) > w - 1 ? '#00000040' : sh); } }
+    for (let i = 0; i < 7; i++) { P.line(BX - NW - 1, yN - 3, BX - 2, yN + 5, 3, sh); P.line(BX + NW + 1, yN - 3, BX + 2, yN + 5, 3, sh, '#c8c8d4'); }
+    if (of === 'tie' || of === 'police' || of === 'school') { const tc = o.tie || '#c8303c'; P.rect(BX - 2, yN + 3, 5, 4, shadeHair(tc)[3]); for (let y = yN + 7; y < yN + 36; y++) { const w = 1.5 + (y - yN - 7) * 0.06; for (let x = BX - w; x <= BX + w + 1; x++) P.set(x, y, x > BX ? shadeHair(tc)[3] : tc); } }
+    if (of === 'ribbon') { const rc = o.tie || '#d6324a'; for (let i = 0; i < 6; i++) { P.line(BX, yN + 7, BX - 7, yN + 3 + i, 2, rc); P.line(BX, yN + 7, BX + 7, yN + 3 + i, 2, rc, shadeHair(rc)[3]); } P.disc(BX, yN + 7, 2, shadeHair(rc)[3]); P.line(BX - 1, yN + 8, BX - 4, yN + 16, 2, rc); P.line(BX + 1, yN + 8, BX + 4, yN + 16, 2, rc); }
+    if (of === 'school' || of === 'police' || of === 'ribbon') { for (let y = yN - 1; y < yN + 42; y++) { const w = 4 + (y - yN) * 0.5; P.set(BX - w - 1, y, topS[4]); P.set(BX + w + 1, y, topS[4]); P.set(BX - w - 2, y, topS[1]); } }
   }
-  if (of === 'cardigan') { neckV(10, o.top2 || '#f2e6cc'); for (let y = yN + 8; y < 144; y++) { P.set(CX, y, topS[4]); } for (let i = 0; i < 4; i++) P.disc(CX + 2, yN + 16 + i * 12, 1, '#f2e6cc'); }
-  if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = CX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - CX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(CX - 26, yN + 22, 52, 3, '#2e381c'); }
-  if (of === 'police') { P.rect(CX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(CX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(CX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(CX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(CX + 14, yN + 22, 10, 2, '#9fb8e8'); }
+  if (of === 'cardigan') { neckV(10, o.top2 || '#f2e6cc'); for (let y = yN + 8; y < 144; y++) { P.set(BX, y, topS[4]); } for (let i = 0; i < 4; i++) P.disc(BX + 2, yN + 16 + i * 12, 1, '#f2e6cc'); }
+  if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = BX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - BX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(BX - 26, yN + 22, 52, 3, '#2e381c'); }
+  if (of === 'police') { P.rect(BX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(BX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(BX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(BX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(BX + 14, yN + 22, 10, 2, '#9fb8e8'); }
   // ----- 얼굴 -----
   for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = S[1]; if (r > 0.45) c = S[2]; if (r > 0.82) c = S[3]; if (r < -0.82) c = S[2]; if (y > yC - 4) c = r > 0 ? S[3] : S[2]; if (y < yT + 15 && r < -0.15 && r > -0.7) c = S[0]; P.set(x, y, c); } }
   for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) P.set(CX - 12 + x, E + 6 + y, S[0]);
@@ -292,36 +322,36 @@ function realHuman(o, st) {
   // 눈
   const EX = child ? 8 : 7.5, look = st.look || 0, iris = o.eyes || '#3a2618';
   const eye = (ex, side) => {
-    ex = Math.round(ex);
-    if (st.blink) { for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E + 1, '#2a1a14'); for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 2, S[3]); return; }
-    const big = child ? 1 : 0;
-    for (let x = ex - 3; x <= ex + 3; x++) for (let y = E - big; y <= E + 2; y++) { if ((x === ex - 3 || x === ex + 3) && (y === E - big || y === E + 2)) continue; P.set(x, y, '#f6f2ee'); }
-    for (let y = E - big; y <= E + 2; y++) for (let x = ex - 1 + look; x <= ex + 1 + look; x++) P.set(x, y, iris);
-    P.set(ex + look, E + 1, '#120a08'); if (big) P.set(ex + look, E, '#120a08'); P.set(ex - 1 + look, E - big, '#ffffff');
-    for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E - 1 - big, '#2a1a14'); P.set(ex + side * 4, E - 1 - big, '#2a1a14'); if (fem) { P.set(ex + side * 4, E - 2 - big, '#2a1a14'); P.set(ex + side * 5, E - 2 - big, '#2a1a14'); }
-    for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 3, S[2]);
-    if (old) { P.set(ex + side * 5, E + 1, S[3]); P.set(ex + side * 5, E + 3, S[3]); for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 5, S[2]); }
+    ex = Math.round(ex + (o.eyeX || 0) * side * 0);
+    if (st.blink) { for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E + 2 - (Math.abs(x - ex) > 2 ? 0 : 1) + 1, '#3a2418'); return; }
+    const t0 = E - 1, t1 = E + 3; // 눈 높이 5px
+    for (let x = ex - 3; x <= ex + 3; x++) for (let y = t0; y <= t1; y++) { if ((x === ex - 3 || x === ex + 3) && (y === t0 || y === t1)) continue; P.set(x, y, '#fbf8f4'); }
+    for (let y = t0; y <= t1; y++) for (let x = ex - 2 + look; x <= ex + 1 + look; x++) if (!((y === t0 || y === t1) && (x === ex - 2 + look || x === ex + 1 + look))) P.set(x, y, iris);
+    P.rect(ex - 1 + look, E, 2, 2, '#1a0e0a'); P.set(ex - 2 + look, t0, '#ffffff'); P.set(ex - 1 + look, t0 + 1, '#ffffff'); P.set(ex + 1 + look, t1 - 1, '#ffffff99');
+    for (let x = ex - 3; x <= ex + 3; x++) P.set(x, t0 - 1, '#3a2418'); P.set(ex + side * 4, t0, '#3a2418');
+    if (fem) { P.set(ex + side * 4, t0 - 1, '#3a2418'); P.set(ex + side * 5, t0 - 2, '#3a2418'); }
+    if (old) { P.set(ex + side * 5, E + 2, S[2]); }
   };
   eye(CX - EX, -1); eye(CX + EX, 1);
   // 눈썹
-  const bc = o.brow || H[3], br = o.browStyle || 'normal';
-  for (const side of [-1, 1]) { const ex = CX + side * EX; for (let i = -3; i <= 3; i++) { let y = E - 5 - (Math.abs(i) < 2 ? 1 : 0); if (br === 'sharp') y = E - 5 + Math.round(-i * side * 0.4); if (br === 'up') y -= 1 + (st.act ? 1 : 0); P.set(ex + i, y, bc); if (!fem && !child) P.set(ex + i, y + 1, bc); } }
+  const bc = o.brow || H[2], br = o.browStyle || 'normal';
+  for (const side of [-1, 1]) { const ex = CX + side * EX; for (let i = -3; i <= 3; i++) { let y = E - 5 - (Math.abs(i) < 2 ? 1 : 0); if (br === 'sharp') y = E - 6 + Math.round(-i * side * 0.25); if (br === 'up') y -= 1 + (st.act ? 1 : 0); P.set(ex + i, y, bc); } }
   // 코
-  for (let y = E + 2; y < E + 10; y++) P.set(CX + 2, y, S[2]);
-  P.rect(CX - 1, E + 10, 3, 1, S[0]); P.set(CX - 2, E + 11, S[3]); P.set(CX + 2, E + 11, S[4]); P.rect(CX - 1, E + 12, 3, 1, S[2]);
+  for (let y = E + 5; y < E + 10; y++) P.set(CX + 2, y, S[2]);
+  P.rect(CX - 1, E + 10, 3, 1, S[0]); P.set(CX - 1, E + 11, S[2]); P.set(CX + 2, E + 11, S[3]);
   // 입
-  const M = E + 17, lc = fem ? '#c8506a' : '#a8564a', lc2 = fem ? '#e88a9a' : '#c88070';
+  const M = E + 16, lc = fem ? '#d0607a' : '#b86a5a', lc2 = fem ? '#f0a0ae' : '#d89a88';
   const mouth = st.talk ? 'talk' : (st.act && o.actMouth) || o.mouth || 'neutral';
   if (mouth === 'talk' || mouth === 'open') { const h = mouth === 'open' ? 4 : 3; for (let y = M - 1; y < M - 1 + h; y++) for (let x = CX - 4; x <= CX + 4; x++) P.set(x, y, '#5a1a1a'); P.rect(CX - 3, M - 1, 7, 1, '#f4f0ea'); P.rect(CX - 3, M - 1 + h, 7, 1, lc2); P.rect(CX - 3, M - 2, 7, 1, lc); }
   else {
-    P.rect(CX - 4, M, 9, 1, lc); P.rect(CX - 3, M + 1, 7, 1, lc2); P.rect(CX - 2, M + 2, 5, 1, S[2]);
-    if (mouth === 'smile' || mouth === 'grin') { P.set(CX - 5, M - 1, lc); P.set(CX + 5, M - 1, lc); }
+    P.rect(CX - 3, M, 7, 1, lc); P.rect(CX - 2, M + 1, 5, 1, lc2);
+    if (mouth === 'smile' || mouth === 'grin') { P.set(CX - 4, M - 1, lc); P.set(CX + 4, M - 1, lc); }
     if (mouth === 'grin') { P.rect(CX - 3, M, 7, 1, '#f4f0ea'); }
-    if (mouth === 'frown') { P.set(CX - 5, M + 1, lc); P.set(CX + 5, M + 1, lc); }
+    if (mouth === 'frown') { P.set(CX - 4, M + 1, lc); P.set(CX + 4, M + 1, lc); }
   }
-  if (fem || child) { P.rect(CX - 13, E + 7, 4, 2, '#f08a8a55'); P.rect(CX + 10, E + 7, 4, 2, '#f08a8a55'); }
+  { const bl = fem || child ? '#f08a8a66' : '#f0a08a33'; P.rect(CX - 13, E + 6, 4, 2, bl); P.rect(CX + 10, E + 6, 4, 2, bl); }
   if (old) { P.line(CX - 8, E + 11, CX - 6, E + 18, 1, S[3]); P.line(CX + 8, E + 11, CX + 6, E + 18, 1, S[3]); P.rect(CX - 6, yT + 9, 12, 1, S[2]); P.rect(CX - 5, yT + 12, 10, 1, S[2]); }
-  if (o.stubble) for (let y = M - 3; y < yC; y++) { const w = fw(y); for (let x = CX - w + 2; x <= CX + w - 2; x++) if ((x * 7 + y * 3) % 4 === 0 && Math.abs(y - M) > 1) P.set(x, y, '#3b2a1e55'); }
+  if (o.stubble) for (let y = M - 3; y < yC; y++) { const w = fw(y); for (let x = CX - w + 2; x <= CX + w - 2; x++) if ((x * 7 + y * 3) % 5 === 0 && Math.abs(y - M) > 1 && y > M - 1) P.set(x, y, '#3b2a1e22'); }
   // ----- 앞머리 -----
   const cap = (x, y) => { const dx = x - CX, dy = y - (yT + 16), R = FW + 2.5; return dx * dx + dy * dy * 1.15 <= R * R && y < yT + 16; };
   for (let y = yT - 12; y < yC + 4; y++) for (let x = CX - FW - 7; x <= CX + FW + 7; x++) {
@@ -350,11 +380,27 @@ function realHuman(o, st) {
   }
   // ----- 안경 -----
   if (o.acc === 'glasses') { const g = '#1a1a1a'; for (const side of [-1, 1]) { const ex = Math.round(CX + side * EX); for (let x = ex - 5; x <= ex + 5; x++) { P.set(x, E - 3, g); P.set(x, E + 4, g); } for (let y = E - 3; y <= E + 4; y++) { P.set(ex - 5, y, g); P.set(ex + 5, y, g); } P.set(ex - 3, E - 2, '#ffffffaa'); if (st.act && o.glint) { P.set(ex + 2, E - 2, '#fff'); P.set(ex + 3, E - 1, '#fff'); } } P.rect(CX - 2, E - 1, 5, 1, g); P.rect(CX - FW - 1, E - 2, 3, 1, g); P.rect(CX + FW - 1, E - 2, 3, 1, g); }
-  // ----- 동작 -----
-  if (o.drawAct) o.drawAct(P, st, { CX, yT, yC, E, M, FW, SW, yN, yS, S, topS, H });
+  // ----- 팔 (어깨-팔꿈치-손, 동작 중에는 기본 팔 대신 동작 팔만 그림) -----
+  const k = { CX, BX, yT, yC, E, M, FW, SW, yN, yS, S, topS, H, sy: yS + 5, sl: BX - SW + 3, sr: BX + SW - 3 };
+  const def = [[k.sl - 3, k.sy + 26, k.sl - 1, k.sy + 52], [k.sr + 3, k.sy + 26, k.sr + 1, k.sy + 52]];
+  const pose = (st.act && o.actPose ? o.actPose(k, st) : o.pose ? o.pose(k, st) : def).map((p, i) => p || def[i]);
+  const short = of === 'tee', armS = o.sleeve ? shadeHair(o.sleeve) : topS;
+  pose.forEach((p, i) => limb(P, i ? k.sr : k.sl, k.sy, p[0], p[1], p[2], p[3], armS, S, short));
+  if (o.drawAct) o.drawAct(P, st, k, pose);
   return P.done();
 }
-function armTo(P, sx, sy, hx, hy, sleeve, skin, th) { P.line(sx, sy, hx, hy + 4, th || 8, sleeve[2], sleeve[3]); P.disc(hx, hy, 4, skin[1]); P.rect(hx - 3, hy - 4, 2, 3, skin[2]); }
+function limb(P, sx, sy, ex, ey, hx, hy, sl, sk, short) {
+  // 위팔
+  if (short) { const mx = sx + (ex - sx) * 0.5, my = sy + (ey - sy) * 0.5; P.line(mx, my, ex, ey, 8, sk[1], sk[2]); P.line(sx, sy, mx, my, 11, sl[2], sl[3]); }
+  else P.line(sx, sy, ex, ey, 10, sl[2], sl[3]);
+  // 팔꿈치 관절 + 아래팔
+  P.disc(ex, ey, short ? 3.5 : 4.5, short ? sk[1] : sl[2]);
+  const dx = hx - ex, dy = hy - ey, d = Math.hypot(dx, dy) || 1, cx = hx - dx / d * 4, cy = hy - dy / d * 4;
+  P.line(ex, ey, cx, cy, short ? 7 : 9, short ? sk[1] : sl[2], short ? sk[2] : sl[3]);
+  if (!short) P.line(cx - dx / d * 0.5, cy - dy / d * 0.5, cx, cy, 9, sl[3]);
+  // 손
+  P.disc(hx, hy, 4.5, sk[1]); P.disc(hx + 1, hy + 1, 2, sk[2]); P.disc(hx - 1, hy - 1, 1.5, sk[0]);
+}
 
 function robotAIImg(st) {
   const P = PB(96, 144), m = ['#eef3f9', '#c8d2e0', '#a8b4c6', '#8c98ac', '#5a6478'], dk = '#2a3446', sc = '#0f1a2b', gl = '#4ef0ff';
@@ -392,18 +438,41 @@ function robotDogImg(st) {
 
 // 캐릭터 설정
 const CHAR = {
-  fool: { sex: 'm', style: 'spiky', hair: '#6b4a2a', mouth: 'open', outfit: 'tee', top: '#f2c230', browStyle: 'up', actMouth: 'open', drawAct: (P, st, k) => { if (!st.act) return; armTo(P, k.CX - k.SW + 4, k.yS + 4, k.CX - k.FW - 4, k.E + 10, k.topS, k.S, 8); armTo(P, k.CX + k.SW - 4, k.yS + 4, k.CX + k.FW + 4, k.E + 10, k.topS, k.S, 8); } },
-  granny: { age: 'old', sex: 'f', style: 'bun', hair: '#c8c8c8', mouth: 'open', outfit: 'cardigan', top: '#8a4fb0', top2: '#f2e6cc', browStyle: 'up', eyes: '#4a3a2a', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 4, k.yS + 6, k.CX - k.FW + 2, k.E + 12, k.topS, k.S, 8); } },
-  adult: { sex: 'm', style: 'short', hair: '#3b2a1e', mouth: 'neutral', outfit: 'collar', top: '#5e8c5a', top2: '#5e8c5a', stubble: 1, drawAct: (P, st, k) => { if (!st.act) return; for (let y = k.yS + 18; y < k.yS + 28; y++) for (let x = k.CX - k.SW + 4; x <= k.CX + k.SW - 4; x++) P.set(x, y, y < k.yS + 20 ? k.topS[1] : y > k.yS + 25 ? k.topS[4] : k.topS[3]); P.disc(k.CX + 18, k.yS + 22, 4, k.S[1]); P.disc(k.CX - 18, k.yS + 24, 4, k.S[2]); } },
-  genius: { sex: 'm', style: 'short', hair: '#15151c', mouth: 'neutral', outfit: 'tie', top: '#f4f4f8', top2: '#ffffff', tie: '#c8303c', acc: 'glasses', glint: 1, browStyle: 'sharp', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + 8, 144, k.CX, k.E + 6, k.topS, k.S, 8); } },
-  kid: { age: 'child', sex: 'm', style: 'short', hair: '#4a2c18', mouth: 'grin', outfit: 'tee', top: '#36b0e8', hat: 'propeller', eyes: '#2a1a10', drawAct: (P, st, k) => { if (!st.act) return; armTo(P, k.CX + k.SW - 4, k.yS + 8, k.CX + 16, k.yS + 4, k.topS, k.S, 8); P.rect(k.CX + 10, k.yS - 12, 12, 20, '#1a1a22'); P.rect(k.CX + 11, k.yS - 11, 10, 16, '#3a6ab8'); P.disc(k.CX + 18, k.yS - 9, 1, '#ff3030'); } },
-  boy: { sex: 'm', style: 'spiky', hair: '#2a2a2a', mouth: 'grin', outfit: 'school', top: '#2f3f8f', tie: '#d4a017', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + k.SW - 2, k.yS + 4, k.CX + k.FW + 2, k.yT + 8, k.topS, k.S, 8); } },
-  girl: { sex: 'f', style: 'pony', hair: '#3a2214', mouth: 'frown', outfit: 'ribbon', top: '#2f3f8f', tie: '#d6324a', browStyle: 'sharp', drawAct: (P, st, k) => { if (!st.act) return; for (let y = k.yS + 18; y < k.yS + 27; y++) for (let x = k.CX - k.SW + 4; x <= k.CX + k.SW - 4; x++) P.set(x, y, y > k.yS + 24 ? k.topS[4] : k.topS[3]); P.disc(k.CX + 16, k.yS + 22, 3, k.S[1]); P.disc(k.CX - 16, k.yS + 23, 3, k.S[2]); } },
-  police: { sex: 'm', style: 'short', hair: '#1c1c22', mouth: 'neutral', outfit: 'police', top: '#24365e', top2: '#bcd0ff', tie: '#1b2850', hat: 'police', browStyle: 'sharp', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 4, k.yS + 2, k.CX - 10, k.yT + 2, k.topS, k.S, 8); } },
-  soldier: { sex: 'm', skin: 'tan', style: 'buzz', hair: '#222', mouth: 'neutral', outfit: 'camo', top: '#5b6b3a', hat: 'helmet', browStyle: 'sharp' },
-  romi: { sex: 'f', style: 'long', hair: '#4a2a1a', mouth: 'smile', outfit: 'collar', top: '#f0a8c0', top2: '#ffffff', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 6, k.yS + 26, k.CX - 4, k.yS + 14, k.topS, k.S, 8); } },
-  yena: { age: 'child', sex: 'f', style: 'bob', hair: '#2a1a12', mouth: 'grin', outfit: 'tee', top: '#ffd23a', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + k.SW - 4, k.yS + 4, k.CX + k.SW + 6 + (st.frame % 2) * 4, k.yN - 22, k.topS, k.S, 7); } },
-  owner: { sex: 'm', style: 'short', hair: '#2a2018', mouth: 'smile', outfit: 'tie', top: '#8a9aac', top2: '#ffffff', tie: '#2a3a6a', acc: 'glasses', glint: 1, drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + 8, 144, k.CX, k.E + 6, k.topS, k.S, 8); } },
+  // pose / actPose: [왼쪽 팔, 오른쪽 팔] = [팔꿈치x, 팔꿈치y, 손x, 손y] (null이면 기본 자세)
+  fool: { sex: 'm', style: 'spiky', hair: '#6b4a2a', mouth: 'open', outfit: 'tee', top: '#f2c230', browStyle: 'up', actMouth: 'open', tilt: 3, bodyX: 2,
+    pose: k => [null, [k.sr + 10, k.sy - 20, k.CX + k.FW + 1, k.yT + 13]],
+    actPose: k => [[k.sl - 9, k.sy - 18, k.sl - 4, k.yT + 6], [k.sr + 9, k.sy - 18, k.sr + 4, k.yT + 6]] },
+  granny: { age: 'old', sex: 'f', style: 'bun', hair: '#c8c8c8', mouth: 'smile', actMouth: 'open', outfit: 'cardigan', top: '#8a4fb0', top2: '#f2e6cc', browStyle: 'up', eyes: '#4a3a2a', tilt: -1,
+    pose: k => [[k.sl - 1, k.sy + 22, k.BX - 2, k.sy + 30], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]],
+    actPose: k => [[k.sl - 2, k.sy + 16, k.CX - k.FW + 1, k.E + 13], [k.sr + 2, k.sy + 16, k.CX + k.FW - 1, k.E + 13]] },
+  adult: { sex: 'm', style: 'short', hair: '#3b2a1e', mouth: 'neutral', outfit: 'collar', top: '#5e8c5a', top2: '#5e8c5a', stubble: 1, bodyX: -2, look: 1,
+    pose: k => [[k.sl - 2, k.sy + 22, k.BX + 15, k.sy + 15], [k.sr + 2, k.sy + 24, k.BX - 15, k.sy + 17]],
+    actPose: k => [[k.sl - 6, k.sy + 16, k.sl - 13, k.sy + 2], [k.sr + 6, k.sy + 16, k.sr + 13, k.sy + 2]] },
+  genius: { sex: 'm', style: 'short', hair: '#15151c', mouth: 'smile', outfit: 'tie', top: '#f4f4f8', top2: '#ffffff', tie: '#c8303c', acc: 'glasses', glint: 1, browStyle: 'sharp', bodyX: -3, tilt: -2,
+    pose: k => [[k.sl - 12, k.sy + 17, k.sl + 2, k.sy + 35], null],
+    actPose: k => [[k.sl - 12, k.sy + 17, k.sl + 2, k.sy + 35], [k.sr - 1, k.sy + 22, k.CX + 4, k.E - 1]] },
+  kid: { age: 'child', sex: 'm', style: 'short', hair: '#4a2c18', mouth: 'grin', outfit: 'tee', top: '#36b0e8', hat: 'propeller', eyes: '#2a1a10', tilt: -2,
+    pose: k => [[k.sl - 1, k.sy + 20, k.BX - 4, k.sy + 12], [k.sr + 1, k.sy + 20, k.BX + 5, k.sy + 12]],
+    actPose: k => [null, [k.sr + 9, k.sy + 2, k.sr + 3, k.yN - 16]],
+    drawAct: (P, st, k, pose) => { const h = pose[1]; const x = h[2] - 6, y = h[3] - 17; P.rect(x, y, 12, 20, '#1a1a22'); P.rect(x + 1, y + 1, 10, 16, '#3a6ab8'); P.disc(x + 8, y + 3, 1, '#ff3030'); P.disc(h[2], h[3], 3.5, k.S[1]); } },
+  boy: { sex: 'm', style: 'spiky', hair: '#2a2a2a', mouth: 'grin', outfit: 'school', top: '#2f3f8f', tie: '#d4a017', bodyX: 3, tilt: 2,
+    pose: k => [null, [k.sr + 11, k.sy - 22, k.CX + k.FW + 1, k.yT + 14]],
+    actPose: k => [[k.sl - 6, k.sy + 16, k.sl - 13, k.sy + 2], [k.sr + 6, k.sy + 16, k.sr + 13, k.sy + 2]] },
+  girl: { sex: 'f', style: 'pony', hair: '#3a2214', mouth: 'neutral', actMouth: 'frown', outfit: 'ribbon', top: '#2f3f8f', tie: '#d6324a', browStyle: 'sharp', bodyX: -3, tilt: -3, look: -1,
+    pose: k => [[k.sl - 11, k.sy + 16, k.sl + 1, k.sy + 33], [k.sr + 11, k.sy + 16, k.sr - 1, k.sy + 33]],
+    actPose: k => [[k.sl - 11, k.sy + 16, k.sl + 1, k.sy + 33], [k.sr + 9, k.sy + 6, k.sr + 16, k.sy - 9]] },
+  police: { sex: 'm', style: 'short', hair: '#1c1c22', mouth: 'neutral', outfit: 'police', top: '#24365e', top2: '#bcd0ff', tie: '#1b2850', hat: 'police', bodyX: 2,
+    pose: k => [null, [k.sr + 12, k.sy + 16, k.sr - 1, k.sy + 34]],
+    actPose: k => [[k.sl - 11, k.sy - 16, k.CX - k.FW + 5, k.yT + 9], [k.sr + 12, k.sy + 16, k.sr - 1, k.sy + 34]] },
+  soldier: { sex: 'm', skin: 'tan', style: 'buzz', hair: '#222', mouth: 'neutral', outfit: 'camo', top: '#5b6b3a', hat: 'helmet',
+    pose: k => [[k.sl - 2, k.sy + 24, k.sl + 1, k.sy + 50], [k.sr + 2, k.sy + 24, k.sr - 1, k.sy + 50]] },
+  romi: { sex: 'f', style: 'long', hair: '#4a2a1a', mouth: 'smile', outfit: 'collar', top: '#f0a8c0', top2: '#ffffff', tilt: 2, bodyX: 2,
+    pose: k => [[k.sl - 1, k.sy + 22, k.BX - 2, k.sy + 30], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]],
+    actPose: k => [[k.sl - 2, k.sy + 22, k.BX - 6, k.sy + 6], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]] },
+  yena: { age: 'child', sex: 'f', style: 'bob', hair: '#2a1a12', mouth: 'grin', outfit: 'tee', top: '#ffd23a', tilt: 3,
+    actPose: (k, st) => [null, [k.sr + 9, k.sy - 6, k.sr + 9 + (st.frame % 2) * 4, k.yN - 22]] },
+  owner: { sex: 'm', style: 'short', hair: '#2a2018', mouth: 'smile', outfit: 'tie', top: '#8a9aac', top2: '#ffffff', tie: '#2a3a6a', acc: 'glasses', glint: 1, bodyX: 2,
+    actPose: k => [null, [k.sr - 1, k.sy + 22, k.CX + 4, k.E - 1]] },
 };
 const PORTRAITS = {};
 const PSEED = { ai: 0.3, dog: 1.1, fool: 2.2, granny: 0.7, adult: 1.9, genius: 2.8, kid: 0.2, boy: 1.4, girl: 2.5, police: 0.9, soldier: 1.6, romi: 2.1, yena: 0.5, owner: 2.6 };
@@ -421,14 +490,15 @@ function portraitState(k, talking) {
   const t = performance.now() / 1000, sd = PSEED[k] || 0;
   const bp = 3.2 + sd, blink = ((t + sd * 1.7) % bp) < 0.14;
   const ap = 5.5 + sd, act = ((t + sd * 2.3) % ap) > ap - 1.4;
-  const look = k === 'soldier' && ((t + sd) % 6) > 4.5 ? 1 : 0;
+  const look = k === 'soldier' && ((t + sd) % 6) > 4.5 ? 1 : ((CHAR[k] && CHAR[k].look) || 0);
   return { blink, act, look, talk: talking && ((t * 9) | 0) % 2 === 0, frame: (t * 12) | 0, breath: Math.sin(t * 1.9 + sd * 3) };
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
 function drawPortrait(k, x, y, s, crop, talking) {
   const st = portraitState(k, talking), img = portrait(k, st), h = crop || img.height;
-  const by = Math.round(st.breath) * s;
-  ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
+  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180;
+  if (tl) { ctx.save(); ctx.translate(x + img.width * s / 2, y + by + h * s); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -img.width * s / 2, -h * s, img.width * s, h * s); ctx.restore(); }
+  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
 }
 
 // ===================== 그림 (배경·캐릭터 스프라이트) =====================
@@ -487,14 +557,32 @@ function house(c, x, y, w, roof, wall) {
   R(c, x + 6, y + 8, 8, 8, '#7ec8f0'); R(c, x + w - 16, y + 10, 8, 16, '#7a4a2a'); R(c, x + 9, y + 8, 1, 8, '#fff'); R(c, x + 6, y + 11, 8, 1, '#fff');
 }
 
+// 배경 사물을 캐릭터 크기에 맞게 줄여 그리기 (ax, ay: 바닥 기준점)
+function prop(c, ax, ay, k, fn) { c.save(); c.translate(ax, ay); c.scale(k, k); c.translate(-ax, -ay); fn(); c.restore(); }
+// 홍산 야르 초등학교 (x: 왼쪽, y: 바닥)
+function school(c, x, y, t) {
+  const w = 132, h = 50;
+  R(c, x, y - h, w, h, '#f2e2c4'); R(c, x, y - h, w, 3, '#c8a878'); R(c, x - 3, y - h - 4, w + 6, 5, '#a85a3a');
+  R(c, x + 52, y - h - 18, 28, 16, '#f2e2c4'); R(c, x + 50, y - h - 21, 32, 4, '#a85a3a');
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(x + 66, y - h - 10, 5, 0, Math.PI * 2); c.fill(); R(c, x + 66, y - h - 14, 1, 4, '#333'); R(c, x + 66, y - h - 10, 3, 1, '#333');
+  for (let f = 0; f < 3; f++) for (let i = 0; i < 9; i++) { if (f === 0 && (i === 4)) continue; R(c, x + 6 + i * 14, y - h + 6 + f * 14, 9, 8, '#8fd0ff'); R(c, x + 10 + i * 14, y - h + 6 + f * 14, 1, 8, '#fff'); }
+  R(c, x + 58, y - 13, 16, 13, '#7a4a2a'); R(c, x + 65, y - 13, 1, 13, '#5a3418');
+  R(c, x + 30, y - h - 1 + 0, 72, 0, '#000');
+  R(c, x + 34, y - 18, 22, 4, '#2a5a3a'); R(c, x + 77, y - 18, 22, 4, '#2a5a3a');
+  R(c, x + 28, y - h + 1, 76, 8, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.textAlign = 'center'; c.fillText('홍산 야르 초등학교', x + 66, y - h + 8); c.textAlign = 'left';
+  R(c, x + w + 6, y - h - 22, 1, h + 22, '#888'); const wv = Math.sin((t || 0) * 4) * 1; R(c, x + w + 7, y - h - 22, 10, 6 + wv, '#fff'); R(c, x + w + 10, y - h - 20, 3, 2, '#d83a3a');
+  for (let i = -20; i < w + 30; i += 6) { R(c, x + i, y - 5, 1, 5, '#e8e8e8'); } R(c, x - 20, y - 4, w + 50, 1, '#e8e8e8');
+}
+
 // ---------- 홍산 야르 동네 ----------
 function bgVillage(c, t, st) {
   sky(c, '7ec8ff', 'cdeeff');
   cloud(c, (40 + t * 6) % 520 - 40, 20, 2); cloud(c, (300 + t * 4) % 520 - 40, 36, 1.5);
   c.save(); c.translate(0, -60);
   hills(c, 150, 18, '#7fbf7a', 1, 0); hills(c, 170, 10, '#5fa65e', 3, 0);
-  [[20, '#c0503a'], [100, '#3d4f7a'], [190, '#4a7a4a'], [300, '#8a4a7a'], [390, '#3d4f7a']].forEach(([x, r], i) => house(c, x, 150 + (i % 2) * 6, 56, r));
-  tree(c, 170, 150, 1.5); tree(c, 360, 146, 1.5); tree(c, 450, 152, 1.4);
+  school(c, 172, 176, t);
+  [[14, '#c0503a'], [92, '#3d4f7a'], [334, '#8a4a7a'], [412, '#3d4f7a']].forEach(([x, r], i) => house(c, x, 150 + (i % 2) * 6, 52, r));
+  tree(c, 152, 158, 1.2); tree(c, 318, 156, 1.2); tree(c, 466, 152, 1.2);
   R(c, 0, 190, LW, 140, '#9fd17a'); R(c, 0, 205, LW, 30, '#b8a88a'); for (let x = 0; x < LW; x += 24) R(c, x, 219, 12, 2, '#e8dcc0');
   R(c, 60, 186, 34, 22, '#8a6a4a'); R(c, 62, 188, 30, 10, '#f5e6c0'); c.fillStyle = '#5a3a1a'; c.font = '7px sans-serif'; c.fillText('홍산마켓', 63, 196);
   // 사람들
@@ -703,8 +791,12 @@ function bgCable(c, t, st, dusk) {
   const p1 = st.p1 != null ? st.p1 : Math.min(320, 200 + t * 5), p2 = st.p2 != null ? st.p2 : Math.min(210, 90 + t * 5);
   cableCar(c, p1, ky(p1 + 15) + 14); cableCar(c, p2, ky(p2 + 15) + 14, '#3a6ad8');
   if (!st.aiOff) spr(c, SPR.ai[0], st.aiX != null ? st.aiX : p1 + 7, ky(p1 + 15) - 10 + (st.aiJump ? (t - st.aiJump) * (t - st.aiJump) * 300 - (t - st.aiJump) * 80 : 0));
-  if (st.pol) { const onCar = st.polX != null ? st.polX : p2 + 7; spr(c, SPR.police[(t * 6 | 0) % 2], onCar, (st.polY != null ? st.polY : ky(onCar + 8) - 10)); }
-  if (st.rope) { c.strokeStyle = '#c8a86a'; c.beginPath(); c.moveTo(p2 + 15, ky(p2 + 15) + 10); c.lineTo(p1 + 15, ky(p1 + 15) + 12); c.stroke(); }
+  if (st.rope) { c.strokeStyle = '#c8a86a'; c.lineWidth = 1; c.beginPath(); c.moveTo(p2 + 15, ky(p2 + 15) + 10); c.lineTo(p1 + 15, ky(p1 + 15) + 12); c.stroke(); }
+  if (st.pol) {
+    const onCar = st.polX != null ? st.polX : p2 + 7, py = st.polY != null ? st.polY : ky(onCar + 8) - 10;
+    if (st.wob) { c.save(); c.translate(onCar + 8, py + 24); c.rotate(st.wob); spr(c, SPR.police[(t * 6 | 0) % 2], -8, -24); c.restore(); }
+    else spr(c, SPR.police[st.walking ? (t * 6 | 0) % 2 : 0], onCar, py);
+  }
   if (st.chip) { R(c, (st.polX || 0) + 14, (st.polY || 0) + 8, 4, 3, '#3aff7a'); }
 }
 function PoliceStage2Intro() {
@@ -730,9 +822,9 @@ function PoliceStage2() {
   const S = {}; const LX = [150, 240, 330], GOAL = 10;
   let lane = 1, px = 240, hearts = 3, dodged = 0, objs = [], nextT = 1.6, mode = 'howto', windup = -1, shake = 0, flash = 0, endT = 0, warn = [];
   function spawn() {
-    const n = dodged >= 5 && Math.random() < 0.35 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
-    ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.95, 1.5 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
-    windup = 0.35;
+    const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
+    ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.7, 1.15 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
+    windup = 0.25;
   }
   S.key = k => {
     if (mode === 'howto') { if (k === 'space' || k === 'enter') { SFX.click(); mode = 'play'; } return; }
@@ -745,7 +837,7 @@ function PoliceStage2() {
     shake = Math.max(0, shake - dt); flash = Math.max(0, flash - dt); windup = Math.max(-1, windup - dt);
     px = lerp(px, LX[lane], Math.min(1, dt * 18));
     if (mode === 'play') {
-      nextT -= dt; if (nextT <= 0) { spawn(); nextT = Math.max(0.9, 1.6 - dodged * 0.06) + rnd(0, 0.4); }
+      nextT -= dt; if (nextT <= 0) { spawn(); nextT = Math.max(0.6, 1.15 - dodged * 0.06) + rnd(0, 0.3); }
       for (const o of objs) {
         o.z += dt / o.dur; o.rot += dt * 10;
         if (o.z >= 1 && !o.done) {
@@ -777,7 +869,7 @@ function PoliceStage2() {
     R(L, 236, 196, 8, 74, '#2a50a8');
     for (let i = 0; i < 3; i++) R(L, LX[i] - 18, 236, 36, 2, '#ffffff40');
     // 경고 표시
-    for (const o of objs) if (!o.done && o.z > 0.35) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
+    for (const o of objs) if (!o.done && o.z > 0.45) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
     // 날아오는 물건
     for (const o of objs) {
       const z = o.z, x = lerp(240, LX[o.l], z), y = lerp(by, 225, z) - Math.sin(Math.min(1, z) * Math.PI) * 40, s = lerp(0.6, 3, Math.min(z, 1.2));
@@ -801,12 +893,17 @@ function PoliceStage2() {
     }
     if (mode === 'clear') T('성공!', W / 2, 220, 70, '#ffe08a', 'center', FONT_UI, '#000');
   };
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function PoliceStage2Clear() {
   const B = (c, t, st) => {
     st.p1 = 300; st.p2 = 200; st.pol = 1; const ky = x => 190 - x * (170 / LW);
-    if (st.cross) { const k = clamp((t - st.cross) / 2, 0, 1); st.polX = lerp(207, 300, k); st.polY = lerp(ky(215), ky(315), k) - 4 + Math.sin(k * Math.PI) * 10; }
+    if (st.cross) {
+      // 밧줄 위를 조심조심 걸어서 건너가기 (밧줄: 뒤 케이블카 지붕 → 앞 케이블카 지붕)
+      const k = clamp((t - st.cross) / 4, 0, 1), x0 = 215, y0 = ky(215) + 10, x1 = 315, y1 = ky(315) + 12;
+      const fx = lerp(x0, x1, k), fy = lerp(y0, y1, k);
+      st.polX = fx - 8; st.polY = fy - 24 + (k > 0 && k < 1 ? Math.abs(Math.sin(t * 8)) * -1 : 0); st.walking = k > 0 && k < 1; st.wob = k > 0 && k < 1 ? Math.sin(t * 5) * 0.12 : 0;
+    }
     if (st.aiJump && t - st.aiJump > 1.2) st.aiOff = 1;
     if (st.aiJump) st.aiX = 307 + (t - st.aiJump) * 40;
     bgCable(c, t, st, true);
@@ -815,8 +912,8 @@ function PoliceStage2Clear() {
   return Cutscene([
     { n: '', t: '해가 지고 있어서 슬슬 어두워지기 시작했다. 하늘이 남색으로 물들어 간다.', bg: B },
     { n: '', t: '경찰은 AI가 올라타 있는 케이블카 지붕을 향해 밧줄을 던졌다!', fx: st => st.rope = 1 },
-    { n: '', t: '그리고 그 밧줄을 타고 AI가 있는 케이블카로 넘어갔다.', fx: st => st.cross = st.t || 0.001 },
-    { n: '경찰', p: 'police', t: '이제 끝이다! 이 해킹 칩만 꽂으면...!', fx: st => st.chip = 1 },
+    { n: '', t: '그리고 그 밧줄 위를 조심조심 걸어서 AI가 있는 케이블카로 넘어갔다.', fx: st => st.cross = st.t || 0.001 },
+    { n: '경찰', p: 'police', t: '이제 끝이다! 이 해킹 칩만 꽂으면...!', fx: st => { st.chip = 1; if (st.cross) st.cross = Math.min(st.cross, st.t - 4); } },
     { n: 'AI', p: 'ai', r: 1, t: '안 돼! 잡힐 순 없어!' },
     { n: '', t: 'AI는 케이블카에서 뛰어내려 버리고, 어둠 속 다른 곳으로 사라졌다.', fx: st => { st.aiJump = st.t || 0.001; st.chip = 0; } },
     { n: '경찰', p: 'police', t: '이런... 놓쳤다. 케이블카가 도착하면 바로 쫓아가야겠군.' },
@@ -893,14 +990,17 @@ const hsh = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h
 const TEX_HEDGE = makeTex((x, y) => { const n = hsh(x, y), b = hsh(x >> 2, y >> 2); const g = 70 + n * 50 + b * 40; return [20 + n * 25, g, 25 + n * 20]; });
 const TEX_GATE = makeTex((x, y) => { if (y < 3 || y > 28 || x % 6 < 2) return [60, 50, 40]; return [255, 230, 140]; });
 
+const GARDEN_SEEDS = [1103, 2207, 3301, 4409, 5501, 6607]; // 미로 정원 맵 6개
+const LANTERN = mk(12, 30, p => { p(5, 8, 2, 22, '#2a2420'); p(3, 28, 6, 2, '#2a2420'); p(2, 0, 8, 2, '#3a3028'); p(3, 2, 6, 7, '#ffd27a'); p(4, 3, 4, 5, '#fff2c0'); p(2, 9, 8, 1, '#3a3028'); });
+const LANTERN_DAT = LANTERN.getContext('2d').getImageData(0, 0, 12, 30).data;
 function PoliceStage3() {
   const S = {};
   const RW = 320, RH = 180;
   const rc = document.createElement('canvas'); rc.width = RW; rc.height = RH; const rg = rc.getContext('2d');
   const img = rg.createImageData(RW, RH), buf = img.data, zb = new Float32Array(RW);
   const cone = new Float32Array(RW * RH);
-  for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) { const dx = (x - RW / 2) / (RW * 0.38), dy = (y - RH * 0.52) / (RH * 0.55); cone[y * RW + x] = 0.05 + 1.15 * Math.max(0, 1 - (dx * dx + dy * dy)); }
-  let mz, map, TW, TH, px, py, pa, ta = 0, caught = 0, pol, mode = 'howto', modeT = 0, footT = 0, myFoot = 0, eye = 0; const SPEED = 2.3;
+  for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) { const dx = (x - RW / 2) / (RW * 0.5), dy = (y - RH * 0.52) / (RH * 0.7); cone[y * RW + x] = 0.07 + 1.15 * Math.max(0, 1 - (dx * dx + dy * dy)); }
+  let mz, map, TW, TH, px, py, pa, ta = 0, caught = 0, pol, mode = 'howto', modeT = 0, footT = 0, myFoot = 0, eye = 0, lan = [], safeT = 0, safeMsg = 0, mapNo = 0; const SPEED = 2.3, SAFE_MAX = 60, FOG = 0.075;
   // 경찰 스프라이트 텍스처
   const pc = mk(32, 48, (p, g) => { g.imageSmoothingEnabled = false; g.drawImage(SPR.police[0], 0, 0, 32, 48); });
   const pdat = pc.getContext('2d').getImageData(0, 0, 32, 48).data;
@@ -908,11 +1008,18 @@ function PoliceStage3() {
   const pdat2 = pc2.getContext('2d').getImageData(0, 0, 32, 48).data;
 
   function setup() {
-    mz = braid(makeMaze(9, 9)); map = mz.m; TW = mz.TW; TH = mz.TH;
+    mapNo = irnd(0, GARDEN_SEEDS.length - 1); const r = seeded(GARDEN_SEEDS[mapNo]);
+    mz = braid(makeMaze(9, 9, r), r); map = mz.m; TW = mz.TW; TH = mz.TH;
     map[TH - 2][TW - 1] = 2;
+    // 깜빡이는 랜턴: 길 위 칸에 흩어 배치
+    lan = []; const cells = [];
+    for (let y = 1; y < TH - 1; y += 2) for (let x = 1; x < TW - 1; x += 2) if (map[y][x] === 0 && x + y > 4) cells.push([x, y]);
+    for (let i = 0; i < 14 && cells.length; i++) { const [x, y] = cells.splice(Math.floor(r() * cells.length), 1)[0]; lan.push({ x: x + 0.5, y: y + 0.5, ph: r() * 10, f: 3 + r() * 5, b: 1 }); }
     reset();
   }
   function reset() { px = 1.5; py = 1.5; pa = 0; ta = 0; pol = { state: 'hidden', t: rnd(1.5, 4), x: 0, y: 0, tx: 0, ty: 0, path: 0, chase: 0 }; }
+  const inSafe = () => Math.hypot(px - 1.5, py - 1.5) < 1.2;
+  const safeOn = () => safeT < SAFE_MAX;
   const wall = (x, y) => { const v = map[Math.floor(y)] && map[Math.floor(y)][Math.floor(x)]; return v === undefined ? 1 : v; };
   function bfs(sx, sy, gx, gy) {
     const q = [[sx, sy]], prev = new Map(); prev.set(sx + ',' + sy, null);
@@ -955,6 +1062,13 @@ function PoliceStage3() {
       myFoot += dt; if (myFoot > 0.38) { myFoot = 0; SFX.foot(0.03); }
     }
     if (mode === 'play' && Math.hypot(px - (TW - 0.5), py - (TH - 1.5)) < 1.0) { mode = 'clear'; modeT = 0; SFX.clear(); }
+    // 랜턴 깜빡임
+    for (const o of lan) { o.b = 0.75 + 0.25 * Math.sin(S.t * o.f + o.ph); if (Math.random() < 0.012) o.off = rnd(0.05, 0.25); if (o.off > 0) { o.off -= dt; o.b = 0.15; } }
+    // 안전지대: 시작 지점에 머문 시간이 누적 1분을 넘으면 비활성화되고 경찰이 위치를 감지
+    const here = inSafe();
+    if (here && safeOn()) { safeT += dt; if (!safeOn()) { safeMsg = 3; SFX.bad(); } }
+    if (safeMsg > 0) safeMsg -= dt;
+    if (here && !safeOn()) { if (pol.state === 'hidden') spawnPolice(); pol.state = 'chase'; pol.chase = Math.max(pol.chase, 3); }
     // 경찰
     if (pol.state === 'hidden') { pol.t -= dt; if (pol.t <= 0) spawnPolice(); }
     else {
@@ -965,21 +1079,24 @@ function PoliceStage3() {
           const o = ops.length ? ops[Math.floor(Math.random() * ops.length)] : [pol.lx, pol.ly];
           pol.lx = pol.tx; pol.ly = pol.ty; pol.tx = o[0]; pol.ty = o[1];
         }
-        if (dist < 2.5 || (dist < 6 && los(pol.x, pol.y, px, py))) { pol.state = 'chase'; pol.chase = rnd(5, 10); }
+        if (!(here && safeOn()) && (dist < 2.5 || (dist < 6 && los(pol.x, pol.y, px, py)))) { pol.state = 'chase'; pol.chase = rnd(5, 10); }
       } else if (pol.state === 'chase') {
-        pol.chase -= dt;
+        pol.chase -= dt; if (here && safeOn()) { pol.state = 'wander'; pol.tx = Math.floor(pol.x); pol.ty = Math.floor(pol.y); }
         if (movePolice(dt, SPEED)) { const r = bfs(pol.tx, pol.ty, Math.floor(px), Math.floor(py)); if (r) { pol.tx = r.next[0]; pol.ty = r.next[1]; } }
         if (pol.chase <= 0) { pol.state = 'hidden'; pol.t = rnd(1, 4); }
       }
-      if (pol.state !== 'hidden' && dist < 0.5) { mode = 'caught'; modeT = 0; caught++; SFX.hit(); SFX.bad(); }
+      if (pol.state !== 'hidden' && dist < 0.5 && !(here && safeOn())) { mode = 'caught'; modeT = 0; caught++; SFX.hit(); SFX.bad(); }
       footT += dt; const fi = pol.state === 'chase' ? 0.32 : 0.5;
       if (footT > fi && pol.state !== 'hidden') { footT = 0; SFX.foot(clamp(0.5 - dist * 0.05, 0.02, 0.5)); }
     }
   };
+  function lampAt(x, y) { let a = 0; for (const o of lan) { if (o.far) continue; const dx = x - o.x, dy = y - o.y; a += o.b / (1 + (dx * dx + dy * dy) * 3.5); } return a; }
   function render() {
+    for (const o of lan) o.far = Math.abs(o.x - px) + Math.abs(o.y - py) > 12;
     const dirX = Math.cos(pa), dirY = Math.sin(pa), plX = -dirY * 0.66, plY = dirX * 0.66;
     const flick = 0.95 + Math.sin(S.t * 23) * 0.02 + (Math.random() < 0.01 ? -0.3 : 0);
     // 바닥 + 하늘
+    const safe = safeOn();
     const r0x = dirX - plX, r0y = dirY - plY, r1x = dirX + plX, r1y = dirY + plY;
     for (let y = 0; y < RH; y++) {
       if (y < RH / 2) {
@@ -987,11 +1104,12 @@ function PoliceStage3() {
         continue;
       }
       const p = y - RH / 2 + 0.5, rd = (RH / 2) / p;
-      const sx = rd * (r1x - r0x) / RW, sy = rd * (r1y - r0y) / RW; let fx = px + rd * r0x, fy = py + rd * r0y;
-      const fd = 1 / (1 + rd * rd * 0.18);
+      const sx = rd * (r1x - r0x) / RW, sy = rd * (r1y - r0y) / RW; let fx = px + rd * r0x, fy = py + rd * r0y, lp0 = 0;
+      const fd = 1 / (1 + rd * rd * FOG);
       for (let x = 0; x < RW; x++) {
-        const i = (y * RW + x) * 4, n = hsh(Math.floor(fx * 10), Math.floor(fy * 10)); const l = cone[y * RW + x] * fd * flick;
-        buf[i] = (25 + n * 20) * l; buf[i + 1] = (45 + n * 35) * l; buf[i + 2] = (22 + n * 15) * l; buf[i + 3] = 255; fx += sx; fy += sy;
+        const i = (y * RW + x) * 4, n = hsh(Math.floor(fx * 10), Math.floor(fy * 10)); const lp = (x & 1) ? lp0 : (lp0 = lampAt(fx, fy)); const l = cone[y * RW + x] * fd * flick;
+        const sz = safe && Math.hypot(fx - 1.5, fy - 1.5) < 1.2;
+        buf[i] = (25 + n * 20) * l + lp * 90; buf[i + 1] = (45 + n * 35) * l + lp * 60 + (sz ? 18 : 0); buf[i + 2] = (22 + n * 15) * l + lp * 30 + (sz ? 55 : 0); buf[i + 3] = 255; fx += sx; fy += sy;
       }
     }
     // 벽
@@ -1005,12 +1123,14 @@ function PoliceStage3() {
       const pd = Math.max(0.05, side === 0 ? sdx - ddx : sdy - ddy); zb[x] = pd;
       let wx = side === 0 ? py + pd * ry : px + pd * rx; wx -= Math.floor(wx);
       const tx = Math.floor(wx * 32) & 31, lh = RH / pd, bot = RH / 2 + lh / 2, top = RH / 2 - lh * 1.1;
-      const tex = hit === 2 ? TEX_GATE : TEX_HEDGE, fd = 1 / (1 + pd * pd * 0.18), sh = side ? 0.75 : 1;
+      const tex = hit === 2 ? TEX_GATE : TEX_HEDGE, fd = 1 / (1 + pd * pd * FOG), sh = side ? 0.75 : 1;
+      const hx = side === 0 ? mx + (stx < 0 ? 1 : 0) : px + pd * rx, hy = side === 1 ? my + (sty < 0 ? 1 : 0) : py + pd * ry, wl = lampAt(hx, hy);
       for (let y = Math.max(0, Math.floor(top)); y < Math.min(RH, Math.ceil(bot)); y++) {
         const v = (y - top) / lh, ty = Math.floor(v * 32) & 31, ti = (ty * 32 + tx) * 3, i = (y * RW + x) * 4;
         let l = hit === 2 ? Math.max(0.55, cone[y * RW + x] * fd) : cone[y * RW + x] * fd * sh * flick;
         const edge = v < 0.08 ? 0.6 : 1;
-        buf[i] = tex[ti] * l * edge; buf[i + 1] = tex[ti + 1] * l * edge; buf[i + 2] = tex[ti + 2] * l * edge;
+        const lw = wl * (0.5 + v * 0.6);
+        buf[i] = tex[ti] * l * edge + lw * 75; buf[i + 1] = tex[ti + 1] * l * edge + lw * 50; buf[i + 2] = tex[ti + 2] * l * edge + lw * 12;
       }
     }
     // 경찰 스프라이트
@@ -1019,27 +1139,41 @@ function PoliceStage3() {
       const tX = inv * (dirY * sx - dirX * sy), tY = inv * (-plY * sx + plX * sy);
       if (tY > 0.1) {
         const scx = Math.floor(RW / 2 * (1 + tX / tY)), h = Math.abs(RH / tY) * 0.95, w = h * 32 / 48;
-        const y0 = RH / 2 + RH / tY / 2 - h, x0 = scx - w / 2, fd = 1 / (1 + tY * tY * 0.18), dat = (S.t * 5 | 0) % 2 ? pdat : pdat2;
+        const y0 = RH / 2 + RH / tY / 2 - h, x0 = scx - w / 2, fd = 1 / (1 + tY * tY * FOG), dat = (S.t * 5 | 0) % 2 ? pdat : pdat2;
         for (let x = Math.max(0, Math.floor(x0)); x < Math.min(RW, x0 + w); x++) {
           if (tY >= zb[x]) continue; const tx = Math.floor((x - x0) / w * 32);
           for (let y = Math.max(0, Math.floor(y0)); y < Math.min(RH, y0 + h); y++) {
             const ty = Math.floor((y - y0) / h * 48), si = (ty * 32 + tx) * 4; if (dat[si + 3] < 128) continue;
-            const l = Math.max(0.12, cone[y * RW + x] * fd), i = (y * RW + x) * 4;
+            const l = Math.max(0.12, cone[y * RW + x] * fd + lampAt(pol.x, pol.y) * 0.8), i = (y * RW + x) * 4;
             buf[i] = dat[si] * l; buf[i + 1] = dat[si + 1] * l; buf[i + 2] = dat[si + 2] * l;
           }
+        }
+      }
+    }
+    // 랜턴 스프라이트
+    const ld = LANTERN_DAT;
+    for (const o of lan) {
+      if (o.far) continue; const sx = o.x - px, sy = o.y - py, inv = 1 / (plX * dirY - dirX * plY);
+      const tX = inv * (dirY * sx - dirX * sy), tY = inv * (-plY * sx + plX * sy); if (tY < 0.2) continue;
+      const scx = RW / 2 * (1 + tX / tY), h = RH / tY * 0.55, w = h * 12 / 30, y0 = RH / 2 + RH / tY / 2 - h, x0 = scx - w / 2;
+      for (let x = Math.max(0, Math.floor(x0)); x < Math.min(RW, x0 + w); x++) {
+        if (tY >= zb[x]) continue; const tx = Math.floor((x - x0) / w * 12);
+        for (let y = Math.max(0, Math.floor(y0)); y < Math.min(RH, y0 + h); y++) {
+          const ty = Math.floor((y - y0) / h * 30), si = (ty * 12 + tx) * 4; if (ld[si + 3] < 128) continue;
+          const glow = ty < 9 && ty > 1 ? o.b : Math.max(0.15, o.b * 0.5), i = (y * RW + x) * 4;
+          buf[i] = ld[si] * glow; buf[i + 1] = ld[si + 1] * glow; buf[i + 2] = ld[si + 2] * glow;
         }
       }
     }
     rg.putImageData(img, 0, 0);
   }
   function drawEye(cx, cy, s, shk) {
-    ctx.save(); ctx.translate(cx, cy);
-    ctx.fillStyle = '#2a0000'; ctx.beginPath(); ctx.ellipse(0, 0, 62 * s, 30 * s, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ffd8d0'; ctx.beginPath(); ctx.ellipse(0, 0, 54 * s, 24 * s, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#c80000'; ctx.lineWidth = 2; for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 50 * s, Math.sin(a) * 20 * s); ctx.lineTo(Math.cos(a + 0.3) * 30 * s, Math.sin(a + 0.2) * 12 * s); ctx.stroke(); }
+    // 단색(붉은색) 눈 아이콘: 윤곽선 + 눈동자
+    const C = '#e01818';
+    ctx.save(); ctx.translate(cx, cy); ctx.strokeStyle = C; ctx.fillStyle = C; ctx.lineWidth = 6 * s;
+    ctx.beginPath(); ctx.moveTo(-60 * s, 0); ctx.quadraticCurveTo(0, -46 * s, 60 * s, 0); ctx.quadraticCurveTo(0, 46 * s, -60 * s, 0); ctx.closePath(); ctx.stroke();
     const ox = rnd(-shk, shk), oy = rnd(-shk, shk) * 0.6;
-    ctx.fillStyle = '#e00000'; ctx.beginPath(); ctx.arc(ox, oy, 19 * s, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(ox, oy, 5 * s, 15 * s, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ox, oy, 16 * s, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
   S.draw = () => {
@@ -1051,20 +1185,23 @@ function PoliceStage3() {
     if (eye > 0.03) { ctx.globalAlpha = Math.min(1, eye * 2); drawEye(W / 2, 62, 0.9, near * near * 14 + 0.5); ctx.globalAlpha = 1; }
     if (near > 0.5) { ctx.fillStyle = 'rgba(120,0,0,' + (near - 0.5) * 0.5 + ')'; ctx.fillRect(0, 0, W, H); }
     T('W: 앞으로   S: 뒤로   A/D: 왼쪽/오른쪽으로 90도 회전', W / 2, H - 22, 20, '#aab', 'center', FONT_UI, '#000');
-    if (mode !== 'howto') { box(132, 10, 170, 34, 'rgba(40,0,0,.75)', '#ff6a6a', 2); T('잡힌 횟수 ' + caught + ' / 5', 217, 28, 19, '#ffd0d0', 'center'); }
+    if (mode !== 'howto') { box(268, 10, 170, 34, 'rgba(40,0,0,.75)', '#ff6a6a', 2); T('잡힌 횟수 ' + caught + ' / 5', 353, 28, 19, '#ffd0d0', 'center');
+      if (inSafe() && safeOn()) { const r = Math.ceil(SAFE_MAX - safeT); box(W - 300, 10, 290, 34, 'rgba(0,30,60,.8)', '#7ac8ff', 2); T('안전지대 · 남은 시간 ' + (r / 60 | 0) + ':' + String(r % 60).padStart(2, '0'), W - 155, 28, 19, '#cfeaff', 'center'); }
+      else if (!safeOn()) { box(W - 300, 10, 290, 34, 'rgba(40,0,0,.8)', '#ff6a6a', 2); T('안전지대 사라짐', W - 155, 28, 19, '#ffd0d0', 'center'); }
+      if (safeMsg > 0) T('안전지대가 사라졌어요! 경찰이 위치를 알아챘어요!', W / 2, 140, 30, '#ff8a8a', 'center', FONT_UI, '#000'); }
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 340, 70, 680, 400, '#14141c', '#8a1a1a', 6);
       T('3 스테이지 · 어둠의 미로 정원', W / 2, 115, 38, '#ff6a6a', 'center');
       [['W', '앞으로 이동 (누르고 있으면 계속, 떼면 멈춤)'], ['S', '뒤로 이동 (앞보다 조금 느림)'], ['A / D', '왼쪽 / 오른쪽으로 90도 회전']].forEach((s, i) => { box(W / 2 - 290, 150 + i * 70, 100, 54, '#2a0a0a', '#ff6a6a', 3); T(s[0], W / 2 - 240, 178 + i * 70, 28, '#ff9a9a', 'center'); T(s[1], W / 2 - 170, 178 + i * 70, 22, '#eee', 'left', FONT_TX); });
-      T('경찰을 피해 빛나는 탈출구를 찾으세요. 화면 위에 붉은 눈이 보이면 경찰이 가까이 있어요!', W / 2, 372, 19, '#ddd', 'center', FONT_TX); T('경찰은 어디서든 나타나고, 5번 잡히면 실패예요.', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
+      T('경찰을 피해 빛나는 탈출구를 찾으세요. 화면 위에 붉은 눈이 보이면 경찰이 가까이 있어요!', W / 2, 372, 19, '#ddd', 'center', FONT_TX); T('시작 지점은 안전지대예요. 단, 누적 1분이 지나면 사라져요. 경찰에게 5번 잡히면 실패!', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
       if ((S.t * 2 | 0) % 2) T('스페이스 또는 클릭으로 시작 ▶', W / 2, 440, 24, '#fff', 'center');
     }
     if (mode === 'caught') { ctx.fillStyle = 'rgba(160,0,0,.6)'; ctx.fillRect(0, 0, W, H); T('붙잡혔다!', W / 2, 230, 70, '#fff', 'center', FONT_UI, '#000'); T(caught >= 5 ? '5번 잡혔어요...' : '미로 입구에서 다시 시작해요 (잡힌 횟수 ' + caught + ' / 5)', W / 2, 300, 28, '#fff', 'center', FONT_UI, '#000'); }
     if (mode === 'clear') { ctx.fillStyle = 'rgba(255,240,180,' + Math.min(1, modeT) + ')'; ctx.fillRect(0, 0, W, H); T('탈출구 발견!', W / 2, 260, 64, '#3a2a1a', 'center'); }
   };
-  S.dbg = () => ({ px, py, pa, map, pol }); S.tp = (x, y, a) => { px = x; py = y; pa = a; ta = a; }; window._m = S;
-  return S;
+  S.dbg = () => ({ px, py, pa, map, pol, lan }); S.tp = (x, y, a) => { px = x; py = y; pa = a; ta = a; }; window._m = S;
+  return Pausable(S, () => mode === 'play');
 }
 function PoliceEnding() {
   return Cutscene([
@@ -1081,30 +1218,37 @@ function PoliceEnding() {
 
 // 경찰서 배경 (엔딩)
 function bgStation(c, t, st) {
-  R(c, 0, 0, LW, LH, '#c8ccd4'); for (let x = 0; x < LW; x += 40) R(c, x, 0, 2, 150, '#b8bcc4');
-  R(c, 20, 20, 90, 50, '#8ac0e8'); R(c, 64, 20, 2, 50, '#fff'); R(c, 20, 44, 90, 2, '#fff');
-  R(c, 330, 26, 110, 40, '#2a3d6e'); c.fillStyle = '#fff'; c.font = 'bold 12px sans-serif'; c.fillText('홍산 야르 경찰서', 340, 50);
-  R(c, 0, 150, LW, 120, '#7a6a5a');
-  R(c, 110, 130, 260, 14, '#a8885a'); R(c, 120, 144, 8, 50, '#7a5a3a'); R(c, 352, 144, 8, 50, '#7a5a3a');
-  // 모니터
-  R(c, 180, 40, 120, 84, '#1a1a22'); R(c, 234, 124, 12, 8, '#333'); R(c, 220, 130, 40, 3, '#333');
-  const sx = 186, sy = 46, sw = 108, sh = 70;
+  // 영상 재생 때는 컴퓨터 화면을 클로즈업
+  const z = st.video ? clamp((t - st.video) / 0.8, 0, 1) : 0, zz = 1 + z * z * 1.8;
+  c.save(); if (zz > 1) { const fx = lerp(240, 255, z), fy = lerp(135, 121 + 40 / 2.8, z); c.translate(240, 135); c.scale(zz, zz); c.translate(-fx, -fy); }
+  R(c, -200, -200, LW + 400, 350, '#c8ccd4'); for (let x = -200; x < LW + 200; x += 40) R(c, x, 0, 2, 150, '#b8bcc4');
+  R(c, -200, 150, LW + 400, 300, '#7a6a5a');
+  R(c, 40, 50, 54, 32, '#8ac0e8'); R(c, 66, 50, 2, 32, '#fff'); R(c, 40, 65, 54, 2, '#fff');
+  R(c, 340, 50, 92, 22, '#2a3d6e'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('홍산 야르 경찰서', 348, 65);
+  R(c, 120, 72, 30, 70, '#8a9aa8'); R(c, 122, 74, 26, 30, '#a8b4c0'); R(c, 122, 108, 26, 30, '#a8b4c0'); R(c, 132, 88, 6, 2, '#555'); R(c, 132, 122, 6, 2, '#555');
+  // 책상 + 모니터 (캐릭터 키에 맞춘 크기)
+  R(c, 200, 140, 110, 6, '#a8885a'); R(c, 204, 146, 4, 26, '#7a5a3a'); R(c, 302, 146, 4, 26, '#7a5a3a'); R(c, 270, 146, 34, 22, '#9a7a4a');
+  R(c, 228, 104, 54, 34, '#1a1a22'); R(c, 252, 138, 6, 3, '#333'); R(c, 245, 140, 20, 1, '#333');
+  const sx = 231, sy = 107, sw = 48, sh = 28;
   if (!st.on) R(c, sx, sy, sw, sh, '#0a0a10');
-  else if (!st.video) { R(c, sx, sy, sw, sh, '#2a5aa8'); c.fillStyle = '#fff'; c.font = '8px sans-serif'; c.fillText('부팅 중...', sx + 34, sy + 38); }
+  else if (!st.video) { R(c, sx, sy, sw, sh, '#2a5aa8'); c.fillStyle = '#fff'; c.font = '5px sans-serif'; c.fillText('부팅 중...', sx + 12, sy + 16); }
   else {
     const g = (t * 8 | 0) % 2; R(c, sx, sy, sw, sh, g && t - st.video < 1 ? '#3a1a3a' : '#0f1a2b');
-    if (t - st.video < 0.8) { for (let i = 0; i < 8; i++) R(c, sx, sy + Math.random() * sh, sw, 2, '#4ef0ff55'); }
+    if (t - st.video < 0.8) { for (let i = 0; i < 6; i++) R(c, sx, sy + Math.random() * sh, sw, 1, '#4ef0ff55'); }
     else {
-      spr(c, SPR.ai[0], sx + 6, sy + 30, false, 1.4);
-      c.fillStyle = '#4ef0ff'; c.font = 'bold 7px sans-serif'; c.fillText('제 말은 전부 사실이에요!', sx + 34, sy + 12);
+      spr(c, SPR.ai[0], sx + 2, sy + 9, false, 0.7);
+      c.fillStyle = '#4ef0ff'; c.font = 'bold 3px sans-serif'; c.fillText('제 말은 전부 사실이에요!', sx + 15, sy + 5);
       if (st.proof) {
-        R(c, sx + 34, sy + 18, 28, 22, '#f4ead2'); R(c, sx + 36, sy + 20, 24, 18, '#c8302c'); R(c, sx + 42, sy + 24, 12, 8, '#f4ead2'); c.fillStyle = '#fff'; c.font = '6px sans-serif'; c.fillText('1889 닌텐도', sx + 34, sy + 48);
-        R(c, sx + 74, sy + 30, 6, 10, '#e8dcc0'); R(c, sx + 66, sy + 20, 22, 10, '#c87a3a'); c.fillText('꿀버섯 9.6㎢', sx + 66, sy + 48);
-        c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 40, sy + 62);
+        R(c, sx + 15, sy + 8, 12, 10, '#f4ead2'); R(c, sx + 16, sy + 9, 10, 8, '#c8302c'); R(c, sx + 19, sy + 11, 4, 3, '#f4ead2'); c.fillStyle = '#fff'; c.font = '3px sans-serif'; c.fillText('1889 닌텐도', sx + 14, sy + 22);
+        R(c, sx + 36, sy + 13, 3, 5, '#e8dcc0'); R(c, sx + 32, sy + 9, 11, 5, '#c87a3a'); c.fillText('꿀버섯 9.6㎢', sx + 31, sy + 22);
+        c.fillStyle = '#7cf27c'; c.fillText('✔ 사실 확인', sx + 18, sy + 27);
       }
     }
   }
-  R(c, 136, 150, 34, 6, '#3a3a4a'); R(c, 150, 156, 6, 30, '#3a3a4a'); spr(c, SPR.police[0], 141, 118, false, 1.5);
+  // 의자 + 경찰
+  R(c, 178, 150, 18, 4, '#3a3a4a'); R(c, 192, 130, 4, 22, '#3a3a4a'); R(c, 186, 154, 3, 18, '#3a3a4a');
+  spr(c, SPR.police[0], 178, 128, false, 1);
+  c.restore();
 }
 
 // ===================== 주인을 찾아서 · 1~2 스테이지 =====================
@@ -1129,10 +1273,13 @@ SPR.dog = [dogSpr(0), dogSpr(1), dogSpr(2), dogSpr(0, 1)];
 function bgHome(c, t) {
   R(c, 0, 0, LW, LH, '#f6e2c0'); for (let x = 0; x < LW; x += 16) R(c, x, 0, 8, 150, '#f0d8b0');
   R(c, 0, 150, LW, 120, '#b07a4a'); for (let x = 0; x < LW; x += 40) R(c, x, 150, 2, 120, '#9a6a3a');
-  R(c, 300, 40, 90, 60, '#8fd0ff'); R(c, 343, 40, 4, 60, '#fff'); R(c, 300, 68, 90, 4, '#fff'); R(c, 296, 36, 98, 4, '#fff');
+  R(c, 310, 70, 54, 36, '#8fd0ff'); R(c, 336, 70, 2, 36, '#fff'); R(c, 310, 87, 54, 2, '#fff'); R(c, 307, 67, 60, 3, '#fff');
+  R(c, 330, 120, 20, 30, '#7a5a3a'); R(c, 326, 114, 28, 8, '#5a8a4a'); R(c, 120, 108, 4, 42, '#8a8a8a'); R(c, 114, 102, 16, 8, '#fff2c0');
+  prop(c, 80, 70, 0.6, () => {
   R(c, 60, 60, 40, 30, '#c8a86a'); R(c, 64, 64, 32, 22, '#ffe8c0'); [[68, 70, '#4a2a1a'], [78, 70, '#2a2018'], [88, 74, '#2a1a12']].forEach(([x, y, col]) => { R(c, x, y, 5, 5, col); R(c, x, y + 5, 5, 6, '#e88a9a'); });
-  R(c, 140, 120, 120, 30, '#c84a5a'); R(c, 140, 112, 120, 10, '#a83a4a');
-  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 150, 108); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 230, 108, true);
+  });
+  R(c, 158, 132, 84, 18, '#c84a5a'); R(c, 158, 124, 84, 9, '#a83a4a'); R(c, 154, 128, 6, 22, '#a83a4a'); R(c, 240, 128, 6, 22, '#a83a4a');
+  spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, 0), 170, 116); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), 214, 116, true);
   spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 4 | 0) % 2), 196 + Math.sin(t * 3) * 14, 140);
   spr(c, SPR.dog[(t * 6 | 0) % 2], 226 + Math.sin(t * 3 + 1) * 14, 148, Math.cos(t * 3 + 1) < 0);
   for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i / 3) % 1; c.globalAlpha = 1 - k; R(c, 200 + i * 20, 130 - k * 50, 4, 3, '#ff6a8a'); R(c, 201 + i * 20, 129 - k * 50, 2, 1, '#ff6a8a'); c.globalAlpha = 1; }
@@ -1247,7 +1394,7 @@ function DogStage1() {
     }
     if (mode === 'clear') T('탈출 성공!', W / 2, 220, 64, '#ffe08a', 'center', FONT_UI, '#000');
   };
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 // 펜던트 획득 화면 (3초)
 const PENDANT_IMG = mk(80, 48, p => {
@@ -1364,7 +1511,7 @@ function DogStage3() {
     R(L, px - 8, py + 6, 16, 2, '#0004');
     spr(L, SPR.dog[(keys.w || keys.a || keys.s || keys.d) && mode === 'play' ? ((S.t * 10 | 0) % 2) : 0], px - 10, py - 10 - pb, face < 0);
     blitLo();
-    T('3 스테이지 · 주인 자리를 찾아라!  (사무실 배치 ' + (mi + 1) + '번)', W / 2, 24, 22, '#fff', 'center', FONT_UI, '#000');
+    T('3 스테이지 · 주인 자리를 찾아라!  (사무실 배치 ' + (mi + 1) + '번)', W / 2 + 70, 24, 22, '#fff', 'center', FONT_UI, '#000');
     T('W: 위   A: 왼쪽   S: 아래   D: 오른쪽', W / 2, H - 16, 20, '#fff', 'center', FONT_UI, '#000');
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
@@ -1378,7 +1525,7 @@ function DogStage3() {
     if (mode === 'clear') T('찾았다!', W / 2, 250, 64, '#ffe08a', 'center', FONT_UI, '#000');
   };
   S.tp = (x, y) => { px = x; py = y; }; S.goal = [gx, gy]; window._o = S;
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function DogDrawer() {
   const bg = (c, t, st) => {
@@ -1470,7 +1617,7 @@ function DogStage4() {
     if (mode === 'clear') { ctx.strokeStyle = '#ff3a3a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(target.x, target.y, 26 + Math.sin(S.t * 10) * 3, 0, Math.PI * 2); ctx.stroke(); }
     if (wrong) { ctx.strokeStyle = '#555'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wrong.p.x - 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x + 14, wrong.p.y + 14); ctx.moveTo(wrong.p.x + 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x - 14, wrong.p.y + 14); ctx.stroke(); }
     ctx.restore();
-    box(W / 2 - 300, 8, 600, 44, 'rgba(255,248,230,.95)', '#3a2a1a', 3); T("지도에서 '서울 야르 대피소'를 찾아 클릭하세요!", W / 2, 31, 24, '#3a2a1a', 'center');
+    box(W / 2 - 200, 8, 560, 44, 'rgba(255,248,230,.95)', '#3a2a1a', 3); T("지도에서 '서울 야르 대피소'를 찾아 클릭하세요!", W / 2 + 80, 31, 24, '#3a2a1a', 'center');
     box(W - 150, 60, 140, 34, 'rgba(0,0,0,.6)', '#fff', 2); T('⏱ ' + Math.floor(tm) + '초', W - 80, 78, 20, '#fff', 'center');
     T('마우스 휠 위: 확대 · 아래: 축소 · 드래그: 지도 이동', W / 2, H - 18, 20, '#3a2a1a', 'center', FONT_UI, '#fff');
     if (tm > 20 && mode === 'play') T('힌트: 빨간 동그라미 근처를 찾아보세요!', W / 2, 75, 22, '#e83a3a', 'center', FONT_UI, '#fff');
@@ -1486,7 +1633,7 @@ function DogStage4() {
     if (mode === 'clear') T('찾았다! 서울 야르 대피소!', W / 2, H / 2, 50, '#ffe08a', 'center', FONT_UI, '#000');
   };
   S.target = target; S.tm = v => tm = v; S.view = () => ({ z, cx, cy }); window._map = S;
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function DogAfter4() {
   return Cutscene([
@@ -1568,21 +1715,21 @@ function bgShelter(c, t, st) {
   const back = !!st.back;
   sky(c, back ? '5a6a7a' : '7a8a9a', back ? 'a8a090' : 'c8c0b0'); c.save(); c.translate(0, -45);
   R(c, 0, 60, LW, 140, back ? '#6a6a62' : '#7a7a72'); for (let y = 60; y < 200; y += 14) R(c, 0, y, LW, 1, '#5a5a52'); R(c, 0, 45, LW, 15, back ? '#6a6a62' : '#7a7a72');
-  const dx = back ? 280 : 180, dw = back ? 80 : 120, dh = back ? 100 : 120, dy = 200 - dh;
-  if (back) { R(c, dx - 6, dy - 18, dw + 12, 14, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 10, dy - 7); R(c, 60, 170, 30, 30, '#8a6a3a'); R(c, 64, 174, 22, 2, '#6a4a2a'); R(c, 92, 180, 22, 20, '#7a5a30'); R(c, 160, 186, 40, 14, '#4a4a52'); }
-  else { R(c, 170, 58, 140, 20, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 12px sans-serif'; c.fillText('서울 야르 대피소', 192, 72); }
+  const dx = back ? 286 : 204, dw = back ? 30 : 72, dh = back ? 34 : 46, dy = 200 - dh;
+  if (back) { R(c, dx - 4, dy - 12, dw + 8, 10, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 7, dy - 4); R(c, 70, 182, 18, 18, '#8a6a3a'); R(c, 72, 185, 14, 1, '#6a4a2a'); R(c, 90, 188, 13, 12, '#7a5a30'); R(c, 170, 192, 24, 8, '#4a4a52'); }
+  else { R(c, 178, 122, 124, 16, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소', 198, 134); R(c, dx - 6, dy - 3, dw + 12, 3, '#4a4a42'); }
   R(c, dx, dy, dw, dh, '#2a2a2a');
   const hw = dw / 2, close = st.close ? Math.max(0, 1 - (t - st.close) * 1.2) : 1, half = st.close ? hw * (1 - close) : 0;
   R(c, dx, dy, half, dh, '#5a6a5a'); R(c, dx + dw - half, dy, half, dh, '#5a6a5a');
-  if (half > 4) { R(c, dx + half - 4, dy + 50, 3, 20, '#333'); R(c, dx + dw - half + 1, dy + 50, 3, 20, '#333'); }
-  const fx = dx + dw / 2 - 30;
+  if (half > 4) { R(c, dx + half - 3, dy + dh * 0.45, 2, 8, '#333'); R(c, dx + dw - half + 1, dy + dh * 0.45, 2, 8, '#333'); }
+  const fx = dx + dw / 2 - 26;
   if (st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
   R(c, 0, 200, LW, 120, back ? '#7a7a72' : '#8a8a82');
   const sold = personSpr({ hat: 'helmet', shirt: '#5b6b3a', pants: '#3e4a26' }, 0);
   if (back) { spr(c, sold, dx + dw + 8, 178, true); R(c, dx + dw + 4, 188, 10, 2, '#222'); }
-  else { spr(c, sold, 150, 178, false); spr(c, sold, 312, 178, true); R(c, 162, 188, 10, 2, '#222'); R(c, 308, 188, 10, 2, '#222'); }
+  else { spr(c, sold, dx - 22, 178, false); spr(c, sold, dx + dw + 6, 178, true); R(c, dx - 10, 188, 10, 2, '#222'); R(c, dx + dw + 2, 188, 10, 2, '#222'); }
   let gx = 236;
-  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 250, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
+  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
   else spr(c, SPR.dog[0], gx, 186, false);
   c.restore();
 }
@@ -1663,7 +1810,7 @@ function DogStage6() {
       T(Q[qi].bad, W / 2, 230, 34, '#fff', 'center', FONT_UI, '#000'); T('오답! 처음 질문부터 다시 시작해요', W / 2, 300, 26, '#ffd0d0', 'center', FONT_UI, '#000');
     }
   };
-  return S;
+  return Pausable(S, () => mode === 'q');
 }
 function SadEnding() {
   const B = (c, t, st) => { st.back = 1; bgShelter(c, t, st); };

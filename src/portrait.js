@@ -30,9 +30,9 @@ function realHuman(o, st) {
   const H = shadeHair(o.hair || '#2b1d14');
   const yT = child ? 20 : 14, yC = child ? 68 : 70, FW = child ? 18 : fem ? 16 : 17.5;
   const yM = yT + 30, E = yT + 31;
-  const fw = y => { if (y < yT || y > yC) return -1; if (y <= yM) return FW * Math.sqrt(Math.max(0, 1 - Math.pow((yM - y) / (yM - yT + 3), 2))); const t = (y - yM) / (yC - yM); let w = FW * (1 - (fem || child ? 0.62 : 0.5) * t * t); if (t > 0.82) w *= 1 - (t - 0.82) * 2.6; return Math.max(2, w); };
-  const bob = st.breath || 0;
-  const SW = child ? 31 : fem ? 34 : old ? 37 : 40, yN = (child ? 80 : 82), yS = yN + 13;
+  const fw = y => { if (y < yT || y > yC) return -1; if (y <= yM) return FW * Math.sqrt(Math.max(0, 1 - Math.pow((yM - y) / (yM - yT + 3), 2))); const t = (y - yM) / (yC - yM); let w = FW * (1 - (fem || child ? 0.55 : 0.45) * t * t); if (t > 0.8) w *= 1 - (t - 0.8) * 2.2; return Math.max(2, w); };
+  const bob = st.breath || 0, BX = CX + (o.bodyX || 0);
+  const SW0 = child ? 31 : fem ? 34 : old ? 37 : 40, SW = SW0 - 7, yN = (child ? 80 : 82), yS = yN + 13;
   const bw = y => { if (y < yN - 2) return -1; if (y < yS) { const t = (y - yN + 2) / (yS - yN + 2); return 8 + (SW - 8) * Math.pow(Math.sin(t * Math.PI / 2), 0.7); } return SW + (y - yS) * 0.07; };
   const hairCol = (x, y) => { const n = (x * 3 + (y >> 2) * 5) % 9; if (y < yT + 7 && x > CX - 12 && x < CX - 2 && (x + y) % 3 === 0) return H[0]; return n === 0 ? H[3] : n === 4 ? H[1] : H[2]; };
   const style = o.style || 'short';
@@ -41,27 +41,26 @@ function realHuman(o, st) {
   if (style === 'pony') { const sw = st.act ? 2 : 0; for (let y = yT + 6; y < yT + 58; y++) { const k = (y - yT - 6) / 52, cx2 = CX + FW + 3 + sw * Math.sin(k * 3), r = 5 - k * 3; for (let x = cx2 - r; x <= cx2 + r; x++) P.set(x, y, hairCol(Math.round(x), y)); } }
   // ----- 몸 / 옷 -----
   const top = o.top || '#4a6fd6', topS = shadeHair(top);
-  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - CX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
-  for (let i = 0; i < 6; i++) { P.set(CX - SW + 11 + i, yS + 10 + i * 2, topS[3]); P.set(CX + SW - 11 - i, yS + 10 + i * 2, topS[4]); }
+  for (let y = yN - 2; y < 144; y++) { const w = bw(y); for (let x = Math.floor(BX - w); x <= BX + w; x++) { const r = (x - BX) / w; let c = topS[2]; if (r > 0.55) c = topS[3]; if (r > 0.86) c = topS[4]; if (r < -0.8) c = topS[1]; if (y > yS + 4 && Math.abs(Math.abs(x - BX) - (w - 9)) < 0.6) c = topS[3]; P.set(x, y, c); } }
   // ----- 목 -----
   const NW = child || fem ? 6 : 7.5;
   for (let y = yC - 10; y < yN + 6; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, x > CX + 2 ? S[2] : S[1]);
   for (let y = yC - 1; y < yC + 4; y++) for (let x = CX - NW; x <= CX + NW; x++) P.set(x, y, S[3]);
   // ----- 옷깃 -----
   const of = o.outfit || 'tee';
-  const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = CX - w; x <= CX + w; x++) P.set(x, y, x > CX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(CX - w - 1, y, col); P.set(CX - w - 2, y, col2 || col); P.set(CX + w + 1, y, col); P.set(CX + w + 2, y, col2 || col); } };
-  if (of === 'tee') { for (let x = CX - NW - 1; x <= CX + NW + 1; x++) P.set(x, yN - 2 + Math.round(Math.pow((x - CX) / (NW + 1), 2) * -1 + 1), topS[3]); }
+  const neckV = (depth, col, col2) => { for (let y = yN - 2; y < yN + depth; y++) { const w = NW + 1 - (y - yN + 2) * (NW + 1) / (depth + 2); for (let x = BX - w; x <= BX + w; x++) P.set(x, y, x > BX + 1 ? S[2] : S[1]); } if (col) for (let y = yN - 3; y < yN + depth; y++) { const w = NW + 2 - (y - yN + 3) * (NW + 2) / (depth + 3); P.set(BX - w - 1, y, col); P.set(BX - w - 2, y, col2 || col); P.set(BX + w + 1, y, col); P.set(BX + w + 2, y, col2 || col); } };
+  if (of === 'tee') { for (let x = BX - NW - 1; x <= BX + NW + 1; x++) P.set(x, yN - 2 + Math.round(Math.pow((x - BX) / (NW + 1), 2) * -1 + 1), topS[3]); }
   if (of === 'collar' || of === 'tie' || of === 'police' || of === 'school' || of === 'ribbon') {
     const sh = o.top2 || '#f4f4f8';
-    if (of !== 'collar') { for (let y = yN - 1; y < yN + 30; y++) { const w = 3 + (y - yN) * 0.45; for (let x = CX - w; x <= CX + w; x++) P.set(x, y, Math.abs(x - CX) > w - 1 ? '#00000040' : sh); } }
-    for (let i = 0; i < 7; i++) { P.line(CX - NW - 1, yN - 3, CX - 2, yN + 5, 3, sh); P.line(CX + NW + 1, yN - 3, CX + 2, yN + 5, 3, sh, '#c8c8d4'); }
-    if (of === 'tie' || of === 'police' || of === 'school') { const tc = o.tie || '#c8303c'; P.rect(CX - 2, yN + 3, 5, 4, shadeHair(tc)[3]); for (let y = yN + 7; y < yN + 36; y++) { const w = 1.5 + (y - yN - 7) * 0.06; for (let x = CX - w; x <= CX + w + 1; x++) P.set(x, y, x > CX ? shadeHair(tc)[3] : tc); } }
-    if (of === 'ribbon') { const rc = o.tie || '#d6324a'; for (let i = 0; i < 6; i++) { P.line(CX, yN + 7, CX - 7, yN + 3 + i, 2, rc); P.line(CX, yN + 7, CX + 7, yN + 3 + i, 2, rc, shadeHair(rc)[3]); } P.disc(CX, yN + 7, 2, shadeHair(rc)[3]); P.line(CX - 1, yN + 8, CX - 4, yN + 16, 2, rc); P.line(CX + 1, yN + 8, CX + 4, yN + 16, 2, rc); }
-    if (of === 'school' || of === 'police' || of === 'ribbon') { for (let y = yN - 1; y < yN + 42; y++) { const w = 4 + (y - yN) * 0.5; P.set(CX - w - 1, y, topS[4]); P.set(CX + w + 1, y, topS[4]); P.set(CX - w - 2, y, topS[1]); } }
+    if (of !== 'collar') { for (let y = yN - 1; y < yN + 30; y++) { const w = 3 + (y - yN) * 0.45; for (let x = BX - w; x <= BX + w; x++) P.set(x, y, Math.abs(x - BX) > w - 1 ? '#00000040' : sh); } }
+    for (let i = 0; i < 7; i++) { P.line(BX - NW - 1, yN - 3, BX - 2, yN + 5, 3, sh); P.line(BX + NW + 1, yN - 3, BX + 2, yN + 5, 3, sh, '#c8c8d4'); }
+    if (of === 'tie' || of === 'police' || of === 'school') { const tc = o.tie || '#c8303c'; P.rect(BX - 2, yN + 3, 5, 4, shadeHair(tc)[3]); for (let y = yN + 7; y < yN + 36; y++) { const w = 1.5 + (y - yN - 7) * 0.06; for (let x = BX - w; x <= BX + w + 1; x++) P.set(x, y, x > BX ? shadeHair(tc)[3] : tc); } }
+    if (of === 'ribbon') { const rc = o.tie || '#d6324a'; for (let i = 0; i < 6; i++) { P.line(BX, yN + 7, BX - 7, yN + 3 + i, 2, rc); P.line(BX, yN + 7, BX + 7, yN + 3 + i, 2, rc, shadeHair(rc)[3]); } P.disc(BX, yN + 7, 2, shadeHair(rc)[3]); P.line(BX - 1, yN + 8, BX - 4, yN + 16, 2, rc); P.line(BX + 1, yN + 8, BX + 4, yN + 16, 2, rc); }
+    if (of === 'school' || of === 'police' || of === 'ribbon') { for (let y = yN - 1; y < yN + 42; y++) { const w = 4 + (y - yN) * 0.5; P.set(BX - w - 1, y, topS[4]); P.set(BX + w + 1, y, topS[4]); P.set(BX - w - 2, y, topS[1]); } }
   }
-  if (of === 'cardigan') { neckV(10, o.top2 || '#f2e6cc'); for (let y = yN + 8; y < 144; y++) { P.set(CX, y, topS[4]); } for (let i = 0; i < 4; i++) P.disc(CX + 2, yN + 16 + i * 12, 1, '#f2e6cc'); }
-  if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = CX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - CX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(CX - 26, yN + 22, 52, 3, '#2e381c'); }
-  if (of === 'police') { P.rect(CX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(CX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(CX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(CX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(CX + 14, yN + 22, 10, 2, '#9fb8e8'); }
+  if (of === 'cardigan') { neckV(10, o.top2 || '#f2e6cc'); for (let y = yN + 8; y < 144; y++) { P.set(BX, y, topS[4]); } for (let i = 0; i < 4; i++) P.disc(BX + 2, yN + 16 + i * 12, 1, '#f2e6cc'); }
+  if (of === 'camo') { const r = seeded(77); for (let i = 0; i < 46; i++) { const x = BX - SW + r() * SW * 2, y = yN + r() * 60; if (Math.abs(x - BX) < bw(y) - 1) P.disc(x, y, 1 + (r() * 2 | 0), r() < 0.5 ? '#3e4a26' : '#7a8a50'); } neckV(4, '#3e4a26'); P.rect(BX - 26, yN + 22, 52, 3, '#2e381c'); }
+  if (of === 'police') { P.rect(BX - 28, yN + 18, 7, 8, '#ffd23a'); P.rect(BX - 26, yN + 20, 3, 4, '#b8860b'); P.rect(BX - SW + 2, yS - 3, 12, 3, '#ffd23a'); P.rect(BX + SW - 14, yS - 3, 12, 3, '#c9a020'); P.rect(BX + 14, yN + 22, 10, 2, '#9fb8e8'); }
   // ----- 얼굴 -----
   for (let y = yT; y <= yC; y++) { const w = fw(y); for (let x = Math.floor(CX - w); x <= CX + w; x++) { const r = (x - CX) / w; let c = S[1]; if (r > 0.45) c = S[2]; if (r > 0.82) c = S[3]; if (r < -0.82) c = S[2]; if (y > yC - 4) c = r > 0 ? S[3] : S[2]; if (y < yT + 15 && r < -0.15 && r > -0.7) c = S[0]; P.set(x, y, c); } }
   for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) P.set(CX - 12 + x, E + 6 + y, S[0]);
@@ -70,36 +69,36 @@ function realHuman(o, st) {
   // 눈
   const EX = child ? 8 : 7.5, look = st.look || 0, iris = o.eyes || '#3a2618';
   const eye = (ex, side) => {
-    ex = Math.round(ex);
-    if (st.blink) { for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E + 1, '#2a1a14'); for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 2, S[3]); return; }
-    const big = child ? 1 : 0;
-    for (let x = ex - 3; x <= ex + 3; x++) for (let y = E - big; y <= E + 2; y++) { if ((x === ex - 3 || x === ex + 3) && (y === E - big || y === E + 2)) continue; P.set(x, y, '#f6f2ee'); }
-    for (let y = E - big; y <= E + 2; y++) for (let x = ex - 1 + look; x <= ex + 1 + look; x++) P.set(x, y, iris);
-    P.set(ex + look, E + 1, '#120a08'); if (big) P.set(ex + look, E, '#120a08'); P.set(ex - 1 + look, E - big, '#ffffff');
-    for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E - 1 - big, '#2a1a14'); P.set(ex + side * 4, E - 1 - big, '#2a1a14'); if (fem) { P.set(ex + side * 4, E - 2 - big, '#2a1a14'); P.set(ex + side * 5, E - 2 - big, '#2a1a14'); }
-    for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 3, S[2]);
-    if (old) { P.set(ex + side * 5, E + 1, S[3]); P.set(ex + side * 5, E + 3, S[3]); for (let x = ex - 2; x <= ex + 2; x++) P.set(x, E + 5, S[2]); }
+    ex = Math.round(ex + (o.eyeX || 0) * side * 0);
+    if (st.blink) { for (let x = ex - 3; x <= ex + 3; x++) P.set(x, E + 2 - (Math.abs(x - ex) > 2 ? 0 : 1) + 1, '#3a2418'); return; }
+    const t0 = E - 1, t1 = E + 3; // 눈 높이 5px
+    for (let x = ex - 3; x <= ex + 3; x++) for (let y = t0; y <= t1; y++) { if ((x === ex - 3 || x === ex + 3) && (y === t0 || y === t1)) continue; P.set(x, y, '#fbf8f4'); }
+    for (let y = t0; y <= t1; y++) for (let x = ex - 2 + look; x <= ex + 1 + look; x++) if (!((y === t0 || y === t1) && (x === ex - 2 + look || x === ex + 1 + look))) P.set(x, y, iris);
+    P.rect(ex - 1 + look, E, 2, 2, '#1a0e0a'); P.set(ex - 2 + look, t0, '#ffffff'); P.set(ex - 1 + look, t0 + 1, '#ffffff'); P.set(ex + 1 + look, t1 - 1, '#ffffff99');
+    for (let x = ex - 3; x <= ex + 3; x++) P.set(x, t0 - 1, '#3a2418'); P.set(ex + side * 4, t0, '#3a2418');
+    if (fem) { P.set(ex + side * 4, t0 - 1, '#3a2418'); P.set(ex + side * 5, t0 - 2, '#3a2418'); }
+    if (old) { P.set(ex + side * 5, E + 2, S[2]); }
   };
   eye(CX - EX, -1); eye(CX + EX, 1);
   // 눈썹
-  const bc = o.brow || H[3], br = o.browStyle || 'normal';
-  for (const side of [-1, 1]) { const ex = CX + side * EX; for (let i = -3; i <= 3; i++) { let y = E - 5 - (Math.abs(i) < 2 ? 1 : 0); if (br === 'sharp') y = E - 5 + Math.round(-i * side * 0.4); if (br === 'up') y -= 1 + (st.act ? 1 : 0); P.set(ex + i, y, bc); if (!fem && !child) P.set(ex + i, y + 1, bc); } }
+  const bc = o.brow || H[2], br = o.browStyle || 'normal';
+  for (const side of [-1, 1]) { const ex = CX + side * EX; for (let i = -3; i <= 3; i++) { let y = E - 5 - (Math.abs(i) < 2 ? 1 : 0); if (br === 'sharp') y = E - 6 + Math.round(-i * side * 0.25); if (br === 'up') y -= 1 + (st.act ? 1 : 0); P.set(ex + i, y, bc); } }
   // 코
-  for (let y = E + 2; y < E + 10; y++) P.set(CX + 2, y, S[2]);
-  P.rect(CX - 1, E + 10, 3, 1, S[0]); P.set(CX - 2, E + 11, S[3]); P.set(CX + 2, E + 11, S[4]); P.rect(CX - 1, E + 12, 3, 1, S[2]);
+  for (let y = E + 5; y < E + 10; y++) P.set(CX + 2, y, S[2]);
+  P.rect(CX - 1, E + 10, 3, 1, S[0]); P.set(CX - 1, E + 11, S[2]); P.set(CX + 2, E + 11, S[3]);
   // 입
-  const M = E + 17, lc = fem ? '#c8506a' : '#a8564a', lc2 = fem ? '#e88a9a' : '#c88070';
+  const M = E + 16, lc = fem ? '#d0607a' : '#b86a5a', lc2 = fem ? '#f0a0ae' : '#d89a88';
   const mouth = st.talk ? 'talk' : (st.act && o.actMouth) || o.mouth || 'neutral';
   if (mouth === 'talk' || mouth === 'open') { const h = mouth === 'open' ? 4 : 3; for (let y = M - 1; y < M - 1 + h; y++) for (let x = CX - 4; x <= CX + 4; x++) P.set(x, y, '#5a1a1a'); P.rect(CX - 3, M - 1, 7, 1, '#f4f0ea'); P.rect(CX - 3, M - 1 + h, 7, 1, lc2); P.rect(CX - 3, M - 2, 7, 1, lc); }
   else {
-    P.rect(CX - 4, M, 9, 1, lc); P.rect(CX - 3, M + 1, 7, 1, lc2); P.rect(CX - 2, M + 2, 5, 1, S[2]);
-    if (mouth === 'smile' || mouth === 'grin') { P.set(CX - 5, M - 1, lc); P.set(CX + 5, M - 1, lc); }
+    P.rect(CX - 3, M, 7, 1, lc); P.rect(CX - 2, M + 1, 5, 1, lc2);
+    if (mouth === 'smile' || mouth === 'grin') { P.set(CX - 4, M - 1, lc); P.set(CX + 4, M - 1, lc); }
     if (mouth === 'grin') { P.rect(CX - 3, M, 7, 1, '#f4f0ea'); }
-    if (mouth === 'frown') { P.set(CX - 5, M + 1, lc); P.set(CX + 5, M + 1, lc); }
+    if (mouth === 'frown') { P.set(CX - 4, M + 1, lc); P.set(CX + 4, M + 1, lc); }
   }
-  if (fem || child) { P.rect(CX - 13, E + 7, 4, 2, '#f08a8a55'); P.rect(CX + 10, E + 7, 4, 2, '#f08a8a55'); }
+  { const bl = fem || child ? '#f08a8a66' : '#f0a08a33'; P.rect(CX - 13, E + 6, 4, 2, bl); P.rect(CX + 10, E + 6, 4, 2, bl); }
   if (old) { P.line(CX - 8, E + 11, CX - 6, E + 18, 1, S[3]); P.line(CX + 8, E + 11, CX + 6, E + 18, 1, S[3]); P.rect(CX - 6, yT + 9, 12, 1, S[2]); P.rect(CX - 5, yT + 12, 10, 1, S[2]); }
-  if (o.stubble) for (let y = M - 3; y < yC; y++) { const w = fw(y); for (let x = CX - w + 2; x <= CX + w - 2; x++) if ((x * 7 + y * 3) % 4 === 0 && Math.abs(y - M) > 1) P.set(x, y, '#3b2a1e55'); }
+  if (o.stubble) for (let y = M - 3; y < yC; y++) { const w = fw(y); for (let x = CX - w + 2; x <= CX + w - 2; x++) if ((x * 7 + y * 3) % 5 === 0 && Math.abs(y - M) > 1 && y > M - 1) P.set(x, y, '#3b2a1e22'); }
   // ----- 앞머리 -----
   const cap = (x, y) => { const dx = x - CX, dy = y - (yT + 16), R = FW + 2.5; return dx * dx + dy * dy * 1.15 <= R * R && y < yT + 16; };
   for (let y = yT - 12; y < yC + 4; y++) for (let x = CX - FW - 7; x <= CX + FW + 7; x++) {
@@ -128,11 +127,27 @@ function realHuman(o, st) {
   }
   // ----- 안경 -----
   if (o.acc === 'glasses') { const g = '#1a1a1a'; for (const side of [-1, 1]) { const ex = Math.round(CX + side * EX); for (let x = ex - 5; x <= ex + 5; x++) { P.set(x, E - 3, g); P.set(x, E + 4, g); } for (let y = E - 3; y <= E + 4; y++) { P.set(ex - 5, y, g); P.set(ex + 5, y, g); } P.set(ex - 3, E - 2, '#ffffffaa'); if (st.act && o.glint) { P.set(ex + 2, E - 2, '#fff'); P.set(ex + 3, E - 1, '#fff'); } } P.rect(CX - 2, E - 1, 5, 1, g); P.rect(CX - FW - 1, E - 2, 3, 1, g); P.rect(CX + FW - 1, E - 2, 3, 1, g); }
-  // ----- 동작 -----
-  if (o.drawAct) o.drawAct(P, st, { CX, yT, yC, E, M, FW, SW, yN, yS, S, topS, H });
+  // ----- 팔 (어깨-팔꿈치-손, 동작 중에는 기본 팔 대신 동작 팔만 그림) -----
+  const k = { CX, BX, yT, yC, E, M, FW, SW, yN, yS, S, topS, H, sy: yS + 5, sl: BX - SW + 3, sr: BX + SW - 3 };
+  const def = [[k.sl - 3, k.sy + 26, k.sl - 1, k.sy + 52], [k.sr + 3, k.sy + 26, k.sr + 1, k.sy + 52]];
+  const pose = (st.act && o.actPose ? o.actPose(k, st) : o.pose ? o.pose(k, st) : def).map((p, i) => p || def[i]);
+  const short = of === 'tee', armS = o.sleeve ? shadeHair(o.sleeve) : topS;
+  pose.forEach((p, i) => limb(P, i ? k.sr : k.sl, k.sy, p[0], p[1], p[2], p[3], armS, S, short));
+  if (o.drawAct) o.drawAct(P, st, k, pose);
   return P.done();
 }
-function armTo(P, sx, sy, hx, hy, sleeve, skin, th) { P.line(sx, sy, hx, hy + 4, th || 8, sleeve[2], sleeve[3]); P.disc(hx, hy, 4, skin[1]); P.rect(hx - 3, hy - 4, 2, 3, skin[2]); }
+function limb(P, sx, sy, ex, ey, hx, hy, sl, sk, short) {
+  // 위팔
+  if (short) { const mx = sx + (ex - sx) * 0.5, my = sy + (ey - sy) * 0.5; P.line(mx, my, ex, ey, 8, sk[1], sk[2]); P.line(sx, sy, mx, my, 11, sl[2], sl[3]); }
+  else P.line(sx, sy, ex, ey, 10, sl[2], sl[3]);
+  // 팔꿈치 관절 + 아래팔
+  P.disc(ex, ey, short ? 3.5 : 4.5, short ? sk[1] : sl[2]);
+  const dx = hx - ex, dy = hy - ey, d = Math.hypot(dx, dy) || 1, cx = hx - dx / d * 4, cy = hy - dy / d * 4;
+  P.line(ex, ey, cx, cy, short ? 7 : 9, short ? sk[1] : sl[2], short ? sk[2] : sl[3]);
+  if (!short) P.line(cx - dx / d * 0.5, cy - dy / d * 0.5, cx, cy, 9, sl[3]);
+  // 손
+  P.disc(hx, hy, 4.5, sk[1]); P.disc(hx + 1, hy + 1, 2, sk[2]); P.disc(hx - 1, hy - 1, 1.5, sk[0]);
+}
 
 function robotAIImg(st) {
   const P = PB(96, 144), m = ['#eef3f9', '#c8d2e0', '#a8b4c6', '#8c98ac', '#5a6478'], dk = '#2a3446', sc = '#0f1a2b', gl = '#4ef0ff';
@@ -170,18 +185,41 @@ function robotDogImg(st) {
 
 // 캐릭터 설정
 const CHAR = {
-  fool: { sex: 'm', style: 'spiky', hair: '#6b4a2a', mouth: 'open', outfit: 'tee', top: '#f2c230', browStyle: 'up', actMouth: 'open', drawAct: (P, st, k) => { if (!st.act) return; armTo(P, k.CX - k.SW + 4, k.yS + 4, k.CX - k.FW - 4, k.E + 10, k.topS, k.S, 8); armTo(P, k.CX + k.SW - 4, k.yS + 4, k.CX + k.FW + 4, k.E + 10, k.topS, k.S, 8); } },
-  granny: { age: 'old', sex: 'f', style: 'bun', hair: '#c8c8c8', mouth: 'open', outfit: 'cardigan', top: '#8a4fb0', top2: '#f2e6cc', browStyle: 'up', eyes: '#4a3a2a', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 4, k.yS + 6, k.CX - k.FW + 2, k.E + 12, k.topS, k.S, 8); } },
-  adult: { sex: 'm', style: 'short', hair: '#3b2a1e', mouth: 'neutral', outfit: 'collar', top: '#5e8c5a', top2: '#5e8c5a', stubble: 1, drawAct: (P, st, k) => { if (!st.act) return; for (let y = k.yS + 18; y < k.yS + 28; y++) for (let x = k.CX - k.SW + 4; x <= k.CX + k.SW - 4; x++) P.set(x, y, y < k.yS + 20 ? k.topS[1] : y > k.yS + 25 ? k.topS[4] : k.topS[3]); P.disc(k.CX + 18, k.yS + 22, 4, k.S[1]); P.disc(k.CX - 18, k.yS + 24, 4, k.S[2]); } },
-  genius: { sex: 'm', style: 'short', hair: '#15151c', mouth: 'neutral', outfit: 'tie', top: '#f4f4f8', top2: '#ffffff', tie: '#c8303c', acc: 'glasses', glint: 1, browStyle: 'sharp', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + 8, 144, k.CX, k.E + 6, k.topS, k.S, 8); } },
-  kid: { age: 'child', sex: 'm', style: 'short', hair: '#4a2c18', mouth: 'grin', outfit: 'tee', top: '#36b0e8', hat: 'propeller', eyes: '#2a1a10', drawAct: (P, st, k) => { if (!st.act) return; armTo(P, k.CX + k.SW - 4, k.yS + 8, k.CX + 16, k.yS + 4, k.topS, k.S, 8); P.rect(k.CX + 10, k.yS - 12, 12, 20, '#1a1a22'); P.rect(k.CX + 11, k.yS - 11, 10, 16, '#3a6ab8'); P.disc(k.CX + 18, k.yS - 9, 1, '#ff3030'); } },
-  boy: { sex: 'm', style: 'spiky', hair: '#2a2a2a', mouth: 'grin', outfit: 'school', top: '#2f3f8f', tie: '#d4a017', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + k.SW - 2, k.yS + 4, k.CX + k.FW + 2, k.yT + 8, k.topS, k.S, 8); } },
-  girl: { sex: 'f', style: 'pony', hair: '#3a2214', mouth: 'frown', outfit: 'ribbon', top: '#2f3f8f', tie: '#d6324a', browStyle: 'sharp', drawAct: (P, st, k) => { if (!st.act) return; for (let y = k.yS + 18; y < k.yS + 27; y++) for (let x = k.CX - k.SW + 4; x <= k.CX + k.SW - 4; x++) P.set(x, y, y > k.yS + 24 ? k.topS[4] : k.topS[3]); P.disc(k.CX + 16, k.yS + 22, 3, k.S[1]); P.disc(k.CX - 16, k.yS + 23, 3, k.S[2]); } },
-  police: { sex: 'm', style: 'short', hair: '#1c1c22', mouth: 'neutral', outfit: 'police', top: '#24365e', top2: '#bcd0ff', tie: '#1b2850', hat: 'police', browStyle: 'sharp', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 4, k.yS + 2, k.CX - 10, k.yT + 2, k.topS, k.S, 8); } },
-  soldier: { sex: 'm', skin: 'tan', style: 'buzz', hair: '#222', mouth: 'neutral', outfit: 'camo', top: '#5b6b3a', hat: 'helmet', browStyle: 'sharp' },
-  romi: { sex: 'f', style: 'long', hair: '#4a2a1a', mouth: 'smile', outfit: 'collar', top: '#f0a8c0', top2: '#ffffff', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX - k.SW + 6, k.yS + 26, k.CX - 4, k.yS + 14, k.topS, k.S, 8); } },
-  yena: { age: 'child', sex: 'f', style: 'bob', hair: '#2a1a12', mouth: 'grin', outfit: 'tee', top: '#ffd23a', drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + k.SW - 4, k.yS + 4, k.CX + k.SW + 6 + (st.frame % 2) * 4, k.yN - 22, k.topS, k.S, 7); } },
-  owner: { sex: 'm', style: 'short', hair: '#2a2018', mouth: 'smile', outfit: 'tie', top: '#8a9aac', top2: '#ffffff', tie: '#2a3a6a', acc: 'glasses', glint: 1, drawAct: (P, st, k) => { if (st.act) armTo(P, k.CX + 8, 144, k.CX, k.E + 6, k.topS, k.S, 8); } },
+  // pose / actPose: [왼쪽 팔, 오른쪽 팔] = [팔꿈치x, 팔꿈치y, 손x, 손y] (null이면 기본 자세)
+  fool: { sex: 'm', style: 'spiky', hair: '#6b4a2a', mouth: 'open', outfit: 'tee', top: '#f2c230', browStyle: 'up', actMouth: 'open', tilt: 3, bodyX: 2,
+    pose: k => [null, [k.sr + 10, k.sy - 20, k.CX + k.FW + 1, k.yT + 13]],
+    actPose: k => [[k.sl - 9, k.sy - 18, k.sl - 4, k.yT + 6], [k.sr + 9, k.sy - 18, k.sr + 4, k.yT + 6]] },
+  granny: { age: 'old', sex: 'f', style: 'bun', hair: '#c8c8c8', mouth: 'smile', actMouth: 'open', outfit: 'cardigan', top: '#8a4fb0', top2: '#f2e6cc', browStyle: 'up', eyes: '#4a3a2a', tilt: -1,
+    pose: k => [[k.sl - 1, k.sy + 22, k.BX - 2, k.sy + 30], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]],
+    actPose: k => [[k.sl - 2, k.sy + 16, k.CX - k.FW + 1, k.E + 13], [k.sr + 2, k.sy + 16, k.CX + k.FW - 1, k.E + 13]] },
+  adult: { sex: 'm', style: 'short', hair: '#3b2a1e', mouth: 'neutral', outfit: 'collar', top: '#5e8c5a', top2: '#5e8c5a', stubble: 1, bodyX: -2, look: 1,
+    pose: k => [[k.sl - 2, k.sy + 22, k.BX + 15, k.sy + 15], [k.sr + 2, k.sy + 24, k.BX - 15, k.sy + 17]],
+    actPose: k => [[k.sl - 6, k.sy + 16, k.sl - 13, k.sy + 2], [k.sr + 6, k.sy + 16, k.sr + 13, k.sy + 2]] },
+  genius: { sex: 'm', style: 'short', hair: '#15151c', mouth: 'smile', outfit: 'tie', top: '#f4f4f8', top2: '#ffffff', tie: '#c8303c', acc: 'glasses', glint: 1, browStyle: 'sharp', bodyX: -3, tilt: -2,
+    pose: k => [[k.sl - 12, k.sy + 17, k.sl + 2, k.sy + 35], null],
+    actPose: k => [[k.sl - 12, k.sy + 17, k.sl + 2, k.sy + 35], [k.sr - 1, k.sy + 22, k.CX + 4, k.E - 1]] },
+  kid: { age: 'child', sex: 'm', style: 'short', hair: '#4a2c18', mouth: 'grin', outfit: 'tee', top: '#36b0e8', hat: 'propeller', eyes: '#2a1a10', tilt: -2,
+    pose: k => [[k.sl - 1, k.sy + 20, k.BX - 4, k.sy + 12], [k.sr + 1, k.sy + 20, k.BX + 5, k.sy + 12]],
+    actPose: k => [null, [k.sr + 9, k.sy + 2, k.sr + 3, k.yN - 16]],
+    drawAct: (P, st, k, pose) => { const h = pose[1]; const x = h[2] - 6, y = h[3] - 17; P.rect(x, y, 12, 20, '#1a1a22'); P.rect(x + 1, y + 1, 10, 16, '#3a6ab8'); P.disc(x + 8, y + 3, 1, '#ff3030'); P.disc(h[2], h[3], 3.5, k.S[1]); } },
+  boy: { sex: 'm', style: 'spiky', hair: '#2a2a2a', mouth: 'grin', outfit: 'school', top: '#2f3f8f', tie: '#d4a017', bodyX: 3, tilt: 2,
+    pose: k => [null, [k.sr + 11, k.sy - 22, k.CX + k.FW + 1, k.yT + 14]],
+    actPose: k => [[k.sl - 6, k.sy + 16, k.sl - 13, k.sy + 2], [k.sr + 6, k.sy + 16, k.sr + 13, k.sy + 2]] },
+  girl: { sex: 'f', style: 'pony', hair: '#3a2214', mouth: 'neutral', actMouth: 'frown', outfit: 'ribbon', top: '#2f3f8f', tie: '#d6324a', browStyle: 'sharp', bodyX: -3, tilt: -3, look: -1,
+    pose: k => [[k.sl - 11, k.sy + 16, k.sl + 1, k.sy + 33], [k.sr + 11, k.sy + 16, k.sr - 1, k.sy + 33]],
+    actPose: k => [[k.sl - 11, k.sy + 16, k.sl + 1, k.sy + 33], [k.sr + 9, k.sy + 6, k.sr + 16, k.sy - 9]] },
+  police: { sex: 'm', style: 'short', hair: '#1c1c22', mouth: 'neutral', outfit: 'police', top: '#24365e', top2: '#bcd0ff', tie: '#1b2850', hat: 'police', bodyX: 2,
+    pose: k => [null, [k.sr + 12, k.sy + 16, k.sr - 1, k.sy + 34]],
+    actPose: k => [[k.sl - 11, k.sy - 16, k.CX - k.FW + 5, k.yT + 9], [k.sr + 12, k.sy + 16, k.sr - 1, k.sy + 34]] },
+  soldier: { sex: 'm', skin: 'tan', style: 'buzz', hair: '#222', mouth: 'neutral', outfit: 'camo', top: '#5b6b3a', hat: 'helmet',
+    pose: k => [[k.sl - 2, k.sy + 24, k.sl + 1, k.sy + 50], [k.sr + 2, k.sy + 24, k.sr - 1, k.sy + 50]] },
+  romi: { sex: 'f', style: 'long', hair: '#4a2a1a', mouth: 'smile', outfit: 'collar', top: '#f0a8c0', top2: '#ffffff', tilt: 2, bodyX: 2,
+    pose: k => [[k.sl - 1, k.sy + 22, k.BX - 2, k.sy + 30], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]],
+    actPose: k => [[k.sl - 2, k.sy + 22, k.BX - 6, k.sy + 6], [k.sr + 1, k.sy + 22, k.BX + 3, k.sy + 31]] },
+  yena: { age: 'child', sex: 'f', style: 'bob', hair: '#2a1a12', mouth: 'grin', outfit: 'tee', top: '#ffd23a', tilt: 3,
+    actPose: (k, st) => [null, [k.sr + 9, k.sy - 6, k.sr + 9 + (st.frame % 2) * 4, k.yN - 22]] },
+  owner: { sex: 'm', style: 'short', hair: '#2a2018', mouth: 'smile', outfit: 'tie', top: '#8a9aac', top2: '#ffffff', tie: '#2a3a6a', acc: 'glasses', glint: 1, bodyX: 2,
+    actPose: k => [null, [k.sr - 1, k.sy + 22, k.CX + 4, k.E - 1]] },
 };
 const PORTRAITS = {};
 const PSEED = { ai: 0.3, dog: 1.1, fool: 2.2, granny: 0.7, adult: 1.9, genius: 2.8, kid: 0.2, boy: 1.4, girl: 2.5, police: 0.9, soldier: 1.6, romi: 2.1, yena: 0.5, owner: 2.6 };
@@ -199,12 +237,13 @@ function portraitState(k, talking) {
   const t = performance.now() / 1000, sd = PSEED[k] || 0;
   const bp = 3.2 + sd, blink = ((t + sd * 1.7) % bp) < 0.14;
   const ap = 5.5 + sd, act = ((t + sd * 2.3) % ap) > ap - 1.4;
-  const look = k === 'soldier' && ((t + sd) % 6) > 4.5 ? 1 : 0;
+  const look = k === 'soldier' && ((t + sd) % 6) > 4.5 ? 1 : ((CHAR[k] && CHAR[k].look) || 0);
   return { blink, act, look, talk: talking && ((t * 9) | 0) % 2 === 0, frame: (t * 12) | 0, breath: Math.sin(t * 1.9 + sd * 3) };
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
 function drawPortrait(k, x, y, s, crop, talking) {
   const st = portraitState(k, talking), img = portrait(k, st), h = crop || img.height;
-  const by = Math.round(st.breath) * s;
-  ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
+  const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180;
+  if (tl) { ctx.save(); ctx.translate(x + img.width * s / 2, y + by + h * s); ctx.rotate(tl); ctx.drawImage(img, 0, 0, img.width, h, -img.width * s / 2, -h * s, img.width * s, h * s); ctx.restore(); }
+  else ctx.drawImage(img, 0, 0, img.width, h, x, y + by, img.width * s, h * s);
 }

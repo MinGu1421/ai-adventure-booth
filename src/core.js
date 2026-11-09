@@ -193,6 +193,37 @@ function Notice(title, body, next, opt) {
   return S;
 }
 
+// 공통 일시정지: E키(또는 좌측 상단 버튼)로 멈춤, 다시 누르면 화면을 먼저 보여 준 뒤 3초 카운트다운
+const PAUSE_BTN = { x: 132, y: 10, w: 126, h: 34 };
+function Pausable(S, playing) {
+  let paused = false, cd = 0;
+  const u = S.update, k = S.key, c = S.click, d = S.draw, md = S.mdown, wh = S.wheel;
+  const busy = () => paused || cd > 0;
+  S.isPaused = busy;
+  S.key = key => {
+    if (key === 'e' && playing()) { if (!paused && cd <= 0) { paused = true; SFX.click(); } else if (paused) { paused = false; cd = 3; SFX.click(); } return; }
+    if (busy()) return; k && k(key);
+  };
+  S.click = (x, y) => { if (playing() && inside(x, y, PAUSE_BTN)) { S.key('e'); return; } if (busy()) return; c && c(x, y); };
+  if (md) S.mdown = (x, y) => { if (busy() || (playing() && inside(x, y, PAUSE_BTN))) return; md(x, y); };
+  if (wh) S.wheel = (a, x, y) => { if (!busy()) wh(a, x, y); };
+  S.update = dt => {
+    if (paused) return;
+    if (cd > 0) { const b = Math.ceil(cd); cd -= dt; if (Math.ceil(cd) !== b && cd > 0) SFX.step(); return; }
+    u && u(dt);
+  };
+  S.draw = () => {
+    d();
+    if (!playing() && !busy()) return;
+    const h = inside(mouse.x, mouse.y, PAUSE_BTN) || paused;
+    box(PAUSE_BTN.x, PAUSE_BTN.y, PAUSE_BTN.w, PAUSE_BTN.h, h ? '#ffe08a' : 'rgba(20,20,40,.75)', '#fff', 2);
+    T(paused ? '▶ 계속 (E)' : 'Ⅱ 멈춤 (E)', PAUSE_BTN.x + PAUSE_BTN.w / 2, PAUSE_BTN.y + 18, 18, h ? '#222' : '#fff', 'center');
+    if (paused) { ctx.fillStyle = 'rgba(0,0,30,.65)'; ctx.fillRect(0, 60, W, H - 60); T('일시 정지', W / 2, 230, 64, '#ffe08a', 'center', FONT_UI, '#000'); T('E 키를 다시 누르면 3초 뒤에 이어서 시작해요', W / 2, 300, 24, '#fff', 'center', FONT_TX, '#000'); }
+    else if (cd > 0) T(String(Math.ceil(cd)), W / 2, H / 2, 140, '#ffe08a', 'center', FONT_UI, '#000');
+  };
+  return S;
+}
+
 function GameOver(msg) {
   return Notice(msg || '하트를 모두 잃었어요', '메인 화면으로 돌아갑니다.\n다시 도전해 보세요!', () => MainMenu(), { auto: 3.5, color: '#ff6a6a' });
 }

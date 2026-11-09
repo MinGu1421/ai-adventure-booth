@@ -14,8 +14,12 @@ function bgCable(c, t, st, dusk) {
   const p1 = st.p1 != null ? st.p1 : Math.min(320, 200 + t * 5), p2 = st.p2 != null ? st.p2 : Math.min(210, 90 + t * 5);
   cableCar(c, p1, ky(p1 + 15) + 14); cableCar(c, p2, ky(p2 + 15) + 14, '#3a6ad8');
   if (!st.aiOff) spr(c, SPR.ai[0], st.aiX != null ? st.aiX : p1 + 7, ky(p1 + 15) - 10 + (st.aiJump ? (t - st.aiJump) * (t - st.aiJump) * 300 - (t - st.aiJump) * 80 : 0));
-  if (st.pol) { const onCar = st.polX != null ? st.polX : p2 + 7; spr(c, SPR.police[(t * 6 | 0) % 2], onCar, (st.polY != null ? st.polY : ky(onCar + 8) - 10)); }
-  if (st.rope) { c.strokeStyle = '#c8a86a'; c.beginPath(); c.moveTo(p2 + 15, ky(p2 + 15) + 10); c.lineTo(p1 + 15, ky(p1 + 15) + 12); c.stroke(); }
+  if (st.rope) { c.strokeStyle = '#c8a86a'; c.lineWidth = 1; c.beginPath(); c.moveTo(p2 + 15, ky(p2 + 15) + 10); c.lineTo(p1 + 15, ky(p1 + 15) + 12); c.stroke(); }
+  if (st.pol) {
+    const onCar = st.polX != null ? st.polX : p2 + 7, py = st.polY != null ? st.polY : ky(onCar + 8) - 10;
+    if (st.wob) { c.save(); c.translate(onCar + 8, py + 24); c.rotate(st.wob); spr(c, SPR.police[(t * 6 | 0) % 2], -8, -24); c.restore(); }
+    else spr(c, SPR.police[st.walking ? (t * 6 | 0) % 2 : 0], onCar, py);
+  }
   if (st.chip) { R(c, (st.polX || 0) + 14, (st.polY || 0) + 8, 4, 3, '#3aff7a'); }
 }
 function PoliceStage2Intro() {
@@ -41,9 +45,9 @@ function PoliceStage2() {
   const S = {}; const LX = [150, 240, 330], GOAL = 10;
   let lane = 1, px = 240, hearts = 3, dodged = 0, objs = [], nextT = 1.6, mode = 'howto', windup = -1, shake = 0, flash = 0, endT = 0, warn = [];
   function spawn() {
-    const n = dodged >= 5 && Math.random() < 0.35 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
-    ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.95, 1.5 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
-    windup = 0.35;
+    const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
+    ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.7, 1.15 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
+    windup = 0.25;
   }
   S.key = k => {
     if (mode === 'howto') { if (k === 'space' || k === 'enter') { SFX.click(); mode = 'play'; } return; }
@@ -56,7 +60,7 @@ function PoliceStage2() {
     shake = Math.max(0, shake - dt); flash = Math.max(0, flash - dt); windup = Math.max(-1, windup - dt);
     px = lerp(px, LX[lane], Math.min(1, dt * 18));
     if (mode === 'play') {
-      nextT -= dt; if (nextT <= 0) { spawn(); nextT = Math.max(0.9, 1.6 - dodged * 0.06) + rnd(0, 0.4); }
+      nextT -= dt; if (nextT <= 0) { spawn(); nextT = Math.max(0.6, 1.15 - dodged * 0.06) + rnd(0, 0.3); }
       for (const o of objs) {
         o.z += dt / o.dur; o.rot += dt * 10;
         if (o.z >= 1 && !o.done) {
@@ -88,7 +92,7 @@ function PoliceStage2() {
     R(L, 236, 196, 8, 74, '#2a50a8');
     for (let i = 0; i < 3; i++) R(L, LX[i] - 18, 236, 36, 2, '#ffffff40');
     // 경고 표시
-    for (const o of objs) if (!o.done && o.z > 0.35) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
+    for (const o of objs) if (!o.done && o.z > 0.45) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
     // 날아오는 물건
     for (const o of objs) {
       const z = o.z, x = lerp(240, LX[o.l], z), y = lerp(by, 225, z) - Math.sin(Math.min(1, z) * Math.PI) * 40, s = lerp(0.6, 3, Math.min(z, 1.2));
@@ -112,12 +116,17 @@ function PoliceStage2() {
     }
     if (mode === 'clear') T('성공!', W / 2, 220, 70, '#ffe08a', 'center', FONT_UI, '#000');
   };
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function PoliceStage2Clear() {
   const B = (c, t, st) => {
     st.p1 = 300; st.p2 = 200; st.pol = 1; const ky = x => 190 - x * (170 / LW);
-    if (st.cross) { const k = clamp((t - st.cross) / 2, 0, 1); st.polX = lerp(207, 300, k); st.polY = lerp(ky(215), ky(315), k) - 4 + Math.sin(k * Math.PI) * 10; }
+    if (st.cross) {
+      // 밧줄 위를 조심조심 걸어서 건너가기 (밧줄: 뒤 케이블카 지붕 → 앞 케이블카 지붕)
+      const k = clamp((t - st.cross) / 4, 0, 1), x0 = 215, y0 = ky(215) + 10, x1 = 315, y1 = ky(315) + 12;
+      const fx = lerp(x0, x1, k), fy = lerp(y0, y1, k);
+      st.polX = fx - 8; st.polY = fy - 24 + (k > 0 && k < 1 ? Math.abs(Math.sin(t * 8)) * -1 : 0); st.walking = k > 0 && k < 1; st.wob = k > 0 && k < 1 ? Math.sin(t * 5) * 0.12 : 0;
+    }
     if (st.aiJump && t - st.aiJump > 1.2) st.aiOff = 1;
     if (st.aiJump) st.aiX = 307 + (t - st.aiJump) * 40;
     bgCable(c, t, st, true);
@@ -126,8 +135,8 @@ function PoliceStage2Clear() {
   return Cutscene([
     { n: '', t: '해가 지고 있어서 슬슬 어두워지기 시작했다. 하늘이 남색으로 물들어 간다.', bg: B },
     { n: '', t: '경찰은 AI가 올라타 있는 케이블카 지붕을 향해 밧줄을 던졌다!', fx: st => st.rope = 1 },
-    { n: '', t: '그리고 그 밧줄을 타고 AI가 있는 케이블카로 넘어갔다.', fx: st => st.cross = st.t || 0.001 },
-    { n: '경찰', p: 'police', t: '이제 끝이다! 이 해킹 칩만 꽂으면...!', fx: st => st.chip = 1 },
+    { n: '', t: '그리고 그 밧줄 위를 조심조심 걸어서 AI가 있는 케이블카로 넘어갔다.', fx: st => st.cross = st.t || 0.001 },
+    { n: '경찰', p: 'police', t: '이제 끝이다! 이 해킹 칩만 꽂으면...!', fx: st => { st.chip = 1; if (st.cross) st.cross = Math.min(st.cross, st.t - 4); } },
     { n: 'AI', p: 'ai', r: 1, t: '안 돼! 잡힐 순 없어!' },
     { n: '', t: 'AI는 케이블카에서 뛰어내려 버리고, 어둠 속 다른 곳으로 사라졌다.', fx: st => { st.aiJump = st.t || 0.001; st.chip = 0; } },
     { n: '경찰', p: 'police', t: '이런... 놓쳤다. 케이블카가 도착하면 바로 쫓아가야겠군.' },

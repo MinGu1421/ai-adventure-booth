@@ -54,14 +54,32 @@ function house(c, x, y, w, roof, wall) {
   R(c, x + 6, y + 8, 8, 8, '#7ec8f0'); R(c, x + w - 16, y + 10, 8, 16, '#7a4a2a'); R(c, x + 9, y + 8, 1, 8, '#fff'); R(c, x + 6, y + 11, 8, 1, '#fff');
 }
 
+// 배경 사물을 캐릭터 크기에 맞게 줄여 그리기 (ax, ay: 바닥 기준점)
+function prop(c, ax, ay, k, fn) { c.save(); c.translate(ax, ay); c.scale(k, k); c.translate(-ax, -ay); fn(); c.restore(); }
+// 홍산 야르 초등학교 (x: 왼쪽, y: 바닥)
+function school(c, x, y, t) {
+  const w = 132, h = 50;
+  R(c, x, y - h, w, h, '#f2e2c4'); R(c, x, y - h, w, 3, '#c8a878'); R(c, x - 3, y - h - 4, w + 6, 5, '#a85a3a');
+  R(c, x + 52, y - h - 18, 28, 16, '#f2e2c4'); R(c, x + 50, y - h - 21, 32, 4, '#a85a3a');
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(x + 66, y - h - 10, 5, 0, Math.PI * 2); c.fill(); R(c, x + 66, y - h - 14, 1, 4, '#333'); R(c, x + 66, y - h - 10, 3, 1, '#333');
+  for (let f = 0; f < 3; f++) for (let i = 0; i < 9; i++) { if (f === 0 && (i === 4)) continue; R(c, x + 6 + i * 14, y - h + 6 + f * 14, 9, 8, '#8fd0ff'); R(c, x + 10 + i * 14, y - h + 6 + f * 14, 1, 8, '#fff'); }
+  R(c, x + 58, y - 13, 16, 13, '#7a4a2a'); R(c, x + 65, y - 13, 1, 13, '#5a3418');
+  R(c, x + 30, y - h - 1 + 0, 72, 0, '#000');
+  R(c, x + 34, y - 18, 22, 4, '#2a5a3a'); R(c, x + 77, y - 18, 22, 4, '#2a5a3a');
+  R(c, x + 28, y - h + 1, 76, 8, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.textAlign = 'center'; c.fillText('홍산 야르 초등학교', x + 66, y - h + 8); c.textAlign = 'left';
+  R(c, x + w + 6, y - h - 22, 1, h + 22, '#888'); const wv = Math.sin((t || 0) * 4) * 1; R(c, x + w + 7, y - h - 22, 10, 6 + wv, '#fff'); R(c, x + w + 10, y - h - 20, 3, 2, '#d83a3a');
+  for (let i = -20; i < w + 30; i += 6) { R(c, x + i, y - 5, 1, 5, '#e8e8e8'); } R(c, x - 20, y - 4, w + 50, 1, '#e8e8e8');
+}
+
 // ---------- 홍산 야르 동네 ----------
 function bgVillage(c, t, st) {
   sky(c, '7ec8ff', 'cdeeff');
   cloud(c, (40 + t * 6) % 520 - 40, 20, 2); cloud(c, (300 + t * 4) % 520 - 40, 36, 1.5);
   c.save(); c.translate(0, -60);
   hills(c, 150, 18, '#7fbf7a', 1, 0); hills(c, 170, 10, '#5fa65e', 3, 0);
-  [[20, '#c0503a'], [100, '#3d4f7a'], [190, '#4a7a4a'], [300, '#8a4a7a'], [390, '#3d4f7a']].forEach(([x, r], i) => house(c, x, 150 + (i % 2) * 6, 56, r));
-  tree(c, 170, 150, 1.5); tree(c, 360, 146, 1.5); tree(c, 450, 152, 1.4);
+  school(c, 172, 176, t);
+  [[14, '#c0503a'], [92, '#3d4f7a'], [334, '#8a4a7a'], [412, '#3d4f7a']].forEach(([x, r], i) => house(c, x, 150 + (i % 2) * 6, 52, r));
+  tree(c, 152, 158, 1.2); tree(c, 318, 156, 1.2); tree(c, 466, 152, 1.2);
   R(c, 0, 190, LW, 140, '#9fd17a'); R(c, 0, 205, LW, 30, '#b8a88a'); for (let x = 0; x < LW; x += 24) R(c, x, 219, 12, 2, '#e8dcc0');
   R(c, 60, 186, 34, 22, '#8a6a4a'); R(c, 62, 188, 30, 10, '#f5e6c0'); c.fillStyle = '#5a3a1a'; c.font = '7px sans-serif'; c.fillText('홍산마켓', 63, 196);
   // 사람들

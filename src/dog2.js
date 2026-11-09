@@ -59,7 +59,7 @@ function DogStage3() {
     R(L, px - 8, py + 6, 16, 2, '#0004');
     spr(L, SPR.dog[(keys.w || keys.a || keys.s || keys.d) && mode === 'play' ? ((S.t * 10 | 0) % 2) : 0], px - 10, py - 10 - pb, face < 0);
     blitLo();
-    T('3 스테이지 · 주인 자리를 찾아라!  (사무실 배치 ' + (mi + 1) + '번)', W / 2, 24, 22, '#fff', 'center', FONT_UI, '#000');
+    T('3 스테이지 · 주인 자리를 찾아라!  (사무실 배치 ' + (mi + 1) + '번)', W / 2 + 70, 24, 22, '#fff', 'center', FONT_UI, '#000');
     T('W: 위   A: 왼쪽   S: 아래   D: 오른쪽', W / 2, H - 16, 20, '#fff', 'center', FONT_UI, '#000');
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
@@ -73,7 +73,7 @@ function DogStage3() {
     if (mode === 'clear') T('찾았다!', W / 2, 250, 64, '#ffe08a', 'center', FONT_UI, '#000');
   };
   S.tp = (x, y) => { px = x; py = y; }; S.goal = [gx, gy]; window._o = S;
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function DogDrawer() {
   const bg = (c, t, st) => {
@@ -165,7 +165,7 @@ function DogStage4() {
     if (mode === 'clear') { ctx.strokeStyle = '#ff3a3a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(target.x, target.y, 26 + Math.sin(S.t * 10) * 3, 0, Math.PI * 2); ctx.stroke(); }
     if (wrong) { ctx.strokeStyle = '#555'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wrong.p.x - 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x + 14, wrong.p.y + 14); ctx.moveTo(wrong.p.x + 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x - 14, wrong.p.y + 14); ctx.stroke(); }
     ctx.restore();
-    box(W / 2 - 300, 8, 600, 44, 'rgba(255,248,230,.95)', '#3a2a1a', 3); T("지도에서 '서울 야르 대피소'를 찾아 클릭하세요!", W / 2, 31, 24, '#3a2a1a', 'center');
+    box(W / 2 - 200, 8, 560, 44, 'rgba(255,248,230,.95)', '#3a2a1a', 3); T("지도에서 '서울 야르 대피소'를 찾아 클릭하세요!", W / 2 + 80, 31, 24, '#3a2a1a', 'center');
     box(W - 150, 60, 140, 34, 'rgba(0,0,0,.6)', '#fff', 2); T('⏱ ' + Math.floor(tm) + '초', W - 80, 78, 20, '#fff', 'center');
     T('마우스 휠 위: 확대 · 아래: 축소 · 드래그: 지도 이동', W / 2, H - 18, 20, '#3a2a1a', 'center', FONT_UI, '#fff');
     if (tm > 20 && mode === 'play') T('힌트: 빨간 동그라미 근처를 찾아보세요!', W / 2, 75, 22, '#e83a3a', 'center', FONT_UI, '#fff');
@@ -181,7 +181,7 @@ function DogStage4() {
     if (mode === 'clear') T('찾았다! 서울 야르 대피소!', W / 2, H / 2, 50, '#ffe08a', 'center', FONT_UI, '#000');
   };
   S.target = target; S.tm = v => tm = v; S.view = () => ({ z, cx, cy }); window._map = S;
-  return S;
+  return Pausable(S, () => mode === 'play');
 }
 function DogAfter4() {
   return Cutscene([
@@ -263,21 +263,21 @@ function bgShelter(c, t, st) {
   const back = !!st.back;
   sky(c, back ? '5a6a7a' : '7a8a9a', back ? 'a8a090' : 'c8c0b0'); c.save(); c.translate(0, -45);
   R(c, 0, 60, LW, 140, back ? '#6a6a62' : '#7a7a72'); for (let y = 60; y < 200; y += 14) R(c, 0, y, LW, 1, '#5a5a52'); R(c, 0, 45, LW, 15, back ? '#6a6a62' : '#7a7a72');
-  const dx = back ? 280 : 180, dw = back ? 80 : 120, dh = back ? 100 : 120, dy = 200 - dh;
-  if (back) { R(c, dx - 6, dy - 18, dw + 12, 14, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 10, dy - 7); R(c, 60, 170, 30, 30, '#8a6a3a'); R(c, 64, 174, 22, 2, '#6a4a2a'); R(c, 92, 180, 22, 20, '#7a5a30'); R(c, 160, 186, 40, 14, '#4a4a52'); }
-  else { R(c, 170, 58, 140, 20, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 12px sans-serif'; c.fillText('서울 야르 대피소', 192, 72); }
+  const dx = back ? 286 : 204, dw = back ? 30 : 72, dh = back ? 34 : 46, dy = 200 - dh;
+  if (back) { R(c, dx - 4, dy - 12, dw + 8, 10, '#3a4a3a'); c.fillStyle = '#fff'; c.font = 'bold 7px sans-serif'; c.fillText('뒷문', dx + dw / 2 - 7, dy - 4); R(c, 70, 182, 18, 18, '#8a6a3a'); R(c, 72, 185, 14, 1, '#6a4a2a'); R(c, 90, 188, 13, 12, '#7a5a30'); R(c, 170, 192, 24, 8, '#4a4a52'); }
+  else { R(c, 178, 122, 124, 16, '#2a5a3a'); c.fillStyle = '#fff'; c.font = 'bold 10px sans-serif'; c.fillText('서울 야르 대피소', 198, 134); R(c, dx - 6, dy - 3, dw + 12, 3, '#4a4a42'); }
   R(c, dx, dy, dw, dh, '#2a2a2a');
   const hw = dw / 2, close = st.close ? Math.max(0, 1 - (t - st.close) * 1.2) : 1, half = st.close ? hw * (1 - close) : 0;
   R(c, dx, dy, half, dh, '#5a6a5a'); R(c, dx + dw - half, dy, half, dh, '#5a6a5a');
-  if (half > 4) { R(c, dx + half - 4, dy + 50, 3, 20, '#333'); R(c, dx + dw - half + 1, dy + 50, 3, 20, '#333'); }
-  const fx = dx + dw / 2 - 30;
+  if (half > 4) { R(c, dx + half - 3, dy + dh * 0.45, 2, 8, '#333'); R(c, dx + dw - half + 1, dy + dh * 0.45, 2, 8, '#333'); }
+  const fx = dx + dw / 2 - 26;
   if (st.open && t - st.open > 0.4) { const k = clamp((t - st.open - 0.6) / 1.2, 0, 1); spr(c, personSpr({ hair: '#4a2a1a', shirt: '#f0a8c0', pants: '#6a4a7a' }, (t * 6 | 0) % 2), fx + 15, 176 + k * 4); spr(c, personSpr({ hair: '#2a1a12', shirt: '#ffd23a' }, (t * 6 | 0) % 2), fx + 35 + k * 6, 180); spr(c, personSpr({ hair: '#2a2018', shirt: '#6a7a8c' }, 0), fx - 5, 176); }
   R(c, 0, 200, LW, 120, back ? '#7a7a72' : '#8a8a82');
   const sold = personSpr({ hat: 'helmet', shirt: '#5b6b3a', pants: '#3e4a26' }, 0);
   if (back) { spr(c, sold, dx + dw + 8, 178, true); R(c, dx + dw + 4, 188, 10, 2, '#222'); }
-  else { spr(c, sold, 150, 178, false); spr(c, sold, 312, 178, true); R(c, 162, 188, 10, 2, '#222'); R(c, 308, 188, 10, 2, '#222'); }
+  else { spr(c, sold, dx - 22, 178, false); spr(c, sold, dx + dw + 6, 178, true); R(c, dx - 10, 188, 10, 2, '#222'); R(c, dx + dw + 2, 188, 10, 2, '#222'); }
   let gx = 236;
-  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 250, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
+  if (back) { const k = st.sneak ? clamp((t - st.sneak) / 3, 0, 1) : 1; gx = lerp(70, 262, k); spr(c, SPR.dog[k < 1 ? (t * 6 | 0) % 2 : 0], gx, 186 - (k < 1 && gx < 120 ? 8 : 0), false); }
   else spr(c, SPR.dog[0], gx, 186, false);
   c.restore();
 }
@@ -358,7 +358,7 @@ function DogStage6() {
       T(Q[qi].bad, W / 2, 230, 34, '#fff', 'center', FONT_UI, '#000'); T('오답! 처음 질문부터 다시 시작해요', W / 2, 300, 26, '#ffd0d0', 'center', FONT_UI, '#000');
     }
   };
-  return S;
+  return Pausable(S, () => mode === 'q');
 }
 function SadEnding() {
   const B = (c, t, st) => { st.back = 1; bgShelter(c, t, st); };
