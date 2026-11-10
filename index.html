@@ -2241,7 +2241,7 @@ function bgMenu(c, t) {
   }
   R(c, 0, 228, LW, 42, '#1a1d36'); R(c, 0, 228, LW, 2, '#3a3f6a');
   for (let i = 0; i < 9; i++) tree(c, i * 56 + 8, 210, 1.2, '#1f3a2a');
-  for (let x = 0; x < LW; x += 30) R(c, x + ((t * 30) % 30), 250, 14, 2, '#5a5f8a');
+  for (let x = 0; x < LW; x += 30) R(c, x, 250, 14, 2, '#5a5f8a');
   spr(c, SPR.police[(t * 8 | 0) % 2], 60 + ((t * 40) % 420), 228);
   spr(c, SPR.ai[(t * 8 | 0) % 2], 100 + ((t * 40) % 420), 228);
 }
