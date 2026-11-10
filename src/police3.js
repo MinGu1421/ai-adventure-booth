@@ -314,8 +314,8 @@ function PoliceStage3() {
     if (mode !== 'howto') { box(268, 10, 170, 34, 'rgba(40,0,0,.75)', '#ff6a6a', 2); T('잡힌 횟수 ' + caught + ' / 5', 353, 28, 19, '#ffd0d0', 'center');
       if (inSafe() && safeOn()) { const r = Math.ceil(SAFE_MAX - safeT); box(W - 300, 10, 290, 34, 'rgba(0,30,60,.8)', '#7ac8ff', 2); T('안전지대 · 남은 시간 ' + (r / 60 | 0) + ':' + String(r % 60).padStart(2, '0'), W - 155, 28, 19, '#cfeaff', 'center'); }
       else if (!safeOn()) { box(W - 300, 10, 290, 34, 'rgba(40,0,0,.8)', '#ff6a6a', 2); T('안전지대 사라짐', W - 155, 28, 19, '#ffd0d0', 'center'); }
-      // 미로 지도 (좌측 상단, 버튼 아래). 길·벽·탈출구·열쇠·내 위치와 방향
-      { const cs = 7, mx = 10, my = 92, mw = TW * cs, mh = TH * cs; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(mx - 4, my - 4, mw + 8, mh + 8);
+      // 미로 지도 (우측 상단, 안전지대 표시 아래). 길·벽·탈출구·열쇠·내 위치와 방향
+      { const cs = 7, mw = TW * cs, mh = TH * cs, mx = W - 14 - mw, my = 60; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(mx - 4, my - 4, mw + 8, mh + 8);
         for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) { const v = map[y][x]; ctx.fillStyle = v === 2 ? '#ffd27a' : v ? 'rgba(40,90,50,.9)' : 'rgba(200,210,190,.35)'; ctx.fillRect(mx + x * cs, my + y * cs, cs, cs); }
         if (safeOn()) { ctx.fillStyle = 'rgba(80,170,255,.5)'; ctx.fillRect(mx + cs, my + cs, cs, cs); }
         if (key && !hasKey) { ctx.fillStyle = (S.t * 3 | 0) % 2 ? '#ffd23a' : '#fff3a0'; ctx.beginPath(); ctx.arc(mx + key.x * cs, my + key.y * cs, 3, 0, 7); ctx.fill(); }
