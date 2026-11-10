@@ -554,17 +554,19 @@ function vecHuman(o, st) {
   const top = o.top || '#4a6fd6', topS = shadeHair(top), look = (st.look || 0);
   const rgba = (h, a) => { const v = hexRGBA(h); return 'rgba(' + v[0] + ',' + v[1] + ',' + v[2] + ',' + a + ')'; };
   const fill = (col) => { g.fillStyle = col; g.fill(); };
-  const lin = (x0, y0, x1, y1, stops) => { const gr = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([p, col]) => gr.addColorStop(p, col)); return gr; };
-  const rad = (x, y, r0, r1, stops) => { const gr = g.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([p, col]) => gr.addColorStop(p, col)); return gr; };
+  const FLAT = !o.grad; let keep = false; // 3D 느낌(그라데이션) 없이 평면 채색 + 선화
+  const flat = stops => stops[Math.min(stops.length - 1, stops.length > 2 ? 1 : 0)][1];
+  const lin = (x0, y0, x1, y1, stops) => { if (FLAT && !keep) return flat(stops); const gr = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([p, col]) => gr.addColorStop(p, col)); return gr; };
+  const rad = (x, y, r0, r1, stops) => { if (FLAT && !keep) return flat(stops); const gr = g.createRadialGradient(x, y, r0, x, y, r1); stops.forEach(([p, col]) => gr.addColorStop(p, col)); return gr; };
   const ell = (x, y, rx, ry, rot) => { g.beginPath(); g.ellipse(x, y, Math.max(0.1, rx), Math.max(0.1, ry), rot || 0, 0, Math.PI * 2); };
   const stroke = (col, w) => { g.strokeStyle = col; g.lineWidth = w; g.stroke(); };
-  const soft = (px, fn) => { g.save(); g.filter = 'blur(' + px + 'px)'; fn(); g.restore(); }; // 붓으로 문지른 듯한 부드러운 음영
+  const soft = (px, fn, force) => { g.save(); if (!FLAT || force) g.filter = 'blur(' + px + 'px)'; fn(); g.restore(); }; // 붓으로 문지른 듯한 부드러운 음영
   const R = seeded(o.seed || 7);
   const hairCol = (x0, y0, x1, y1) => lin(x0, y0, x1, y1, [[0, H[1]], [0.45, H[2]], [1, H[3]]]);
   // 머리 가닥: 뿌리(rx, ry) 폭 w → 끝(tx, ty), bend 만큼 휨. 가는 머리결 선을 함께 그림
   const lock = (rx, ry, w, tx, ty, bend, col) => {
     const mx = (rx + tx) / 2 + bend, my = (ry + ty) / 2;
-    g.beginPath(); g.moveTo(rx - w / 2, ry); g.quadraticCurveTo(mx - w * 0.45, my, tx, ty); g.quadraticCurveTo(mx + w * 0.45, my, rx + w / 2, ry); g.closePath(); fill(col || hairCol(rx, ry, tx, ty));
+    g.beginPath(); g.moveTo(rx - w / 2, ry); g.quadraticCurveTo(mx - w * 0.45, my, tx, ty); g.quadraticCurveTo(mx + w * 0.45, my, rx + w / 2, ry); g.closePath(); fill(col || hairCol(rx, ry, tx, ty)); if (FLAT) { g.beginPath(); g.moveTo(rx - w / 2, ry); g.quadraticCurveTo(mx - w * 0.45, my, tx, ty); g.quadraticCurveTo(mx + w * 0.45, my, rx + w / 2, ry); stroke(rgba(H[4], 0.85), 0.4); }
     for (const [f, cl, lw] of [[-0.18, rgba(H[4], 0.45), 0.35], [0.12, rgba(H[0], 0.35), 0.3]]) { g.beginPath(); g.moveTo(rx + w * f, ry + 1); g.quadraticCurveTo(mx + w * f * 0.6, my, tx + (rx - tx) * 0.12, ty + (ry - ty) * 0.12); stroke(cl, lw); }
   };
   const zig = (xL, xR, yb, n, amp) => { for (let i = 0; i <= n; i++) { const x = xR + (xL - xR) * (i / n); g.lineTo(x, yb + (i % 2 ? -amp : 0)); } };
@@ -582,12 +584,13 @@ function vecHuman(o, st) {
   // ===== 목 =====
   const nTop = yC - 9, nBot = yN + 4;
   g.beginPath(); g.moveTo(CX - NW, nTop); g.lineTo(CX + NW, nTop); g.lineTo(BX + NW + 0.5, nBot); g.lineTo(BX - NW - 0.5, nBot); g.closePath();
+  if (FLAT) { g.save(); fill(S[0]); stroke('rgba(130,70,55,.55)', 0.5); g.restore(); g.beginPath(); g.moveTo(CX - NW, nTop); g.lineTo(CX + NW, nTop); g.lineTo(BX + NW + 0.5, nBot); g.lineTo(BX - NW - 0.5, nBot); g.closePath(); }
   fill(lin(CX - NW, 0, CX + NW, 0, [[0, S[1]], [0.6, S[2]], [1, S[3]]]));
   ell(CX + 0.5, yC + 1.5, NW + 1, 3.5); fill(rgba(S[4], 0.35));
   // ===== 몸통 =====
   const SWt = SW0 - 5;
   const torso = () => { g.beginPath(); g.moveTo(BX - NW - 2, yN - 3); g.bezierCurveTo(BX - NW - 9, yN - 1, BX - SWt + 2, yN + 2, BX - SWt, yS + 4); g.lineTo(BX - SWt - 1.5, 150); g.lineTo(BX + SWt + 1.5, 150); g.lineTo(BX + SWt, yS + 4); g.bezierCurveTo(BX + SWt - 2, yN + 2, BX + NW + 9, yN - 1, BX + NW + 2, yN - 3); g.closePath(); };
-  torso(); fill(lin(BX - SWt, 0, BX + SWt, 0, [[0, topS[1]], [0.35, topS[2]], [0.75, topS[3]], [1, topS[4]]]));
+  torso(); fill(lin(BX - SWt, 0, BX + SWt, 0, [[0, topS[1]], [0.35, topS[2]], [0.75, topS[3]], [1, topS[4]]])); if (FLAT) { g.save(); torso(); g.clip(); g.beginPath(); g.moveTo(BX + SWt * 0.35, yN); g.quadraticCurveTo(BX + SWt * 0.25, yS + 20, BX + SWt * 0.45, 150); g.lineTo(BX + SWt + 3, 150); g.lineTo(BX + SWt + 3, yN - 6); g.closePath(); fill(rgba(topS[4], 0.35)); g.restore(); torso(); stroke(rgba(topS[4], 0.95), 0.7); }
   g.save(); torso(); g.clip();
   // 옷 주름, 겨드랑이 그림자
   g.beginPath(); g.moveTo(BX - SWt + 9, yS + 10); g.quadraticCurveTo(BX - SWt + 7, yS + 30, BX - SWt + 10, 146); stroke(rgba(topS[4], 0.35), 1.2);
@@ -626,12 +629,11 @@ function vecHuman(o, st) {
   face(); fill(lin(0, yT, 0, yC, [[0, S[1]], [0.5, S[0]], [1, S[0]]]));
   g.save(); face(); g.clip();
   soft(5, () => {
-    ell(CX, yT + 4, FW + 2, 13); fill(rgba(S[3], 0.55));                // 앞머리 그림자
-    ell(CX + FW * 1.02, E + 6, FW * 0.42, 18); fill(rgba(S[2], 0.6));     // 오른쪽 볼 그림자
-    ell(CX - FW * 1.05, E + 4, FW * 0.25, 14); fill(rgba(S[2], 0.35));
-    ell(CX, yC + 2, FW * 0.5, 4); fill(rgba(S[2], 0.35));
-    for (const sd of [-1, 1]) { ell(CX + sd * 10, E + 7, 5.5, 3); fill(fem || child ? 'rgba(255,105,115,.55)' : 'rgba(235,110,100,.32)'); }
+    ell(CX, yT + 4, FW + 2, 13); fill(rgba(S[3], FLAT ? 0.35 : 0.55));                // 앞머리 그림자
+    ell(CX + FW * 1.02, E + 6, FW * 0.42, 18); fill(rgba(S[2], FLAT ? 0.45 : 0.6));     // 오른쪽 볼 그림자
+    if (!FLAT) { ell(CX - FW * 1.05, E + 4, FW * 0.25, 14); fill(rgba(S[2], 0.35)); ell(CX, yC + 2, FW * 0.5, 4); fill(rgba(S[2], 0.35)); }
   });
+  soft(4, () => { for (const sd of [-1, 1]) { ell(CX + sd * 10, E + 7, 5.5, 3); fill(fem || child ? 'rgba(255,105,115,.55)' : 'rgba(235,110,100,.32)'); } }, true);
   for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(CX + sd * 8 + i * 1.6 - 0.6, E + 7.8); g.lineTo(CX + sd * 8 + i * 1.6 + 0.4, E + 6); stroke('rgba(215,75,85,.5)', 0.35); }
   const ex_ = F.extra || [];
   if (ex_.includes('freckle')) for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) { ell(CX + sd * (7 + R() * 7), E + 5 + R() * 4, 0.45, 0.45); fill('rgba(150,80,50,.6)'); }
@@ -645,6 +647,7 @@ function vecHuman(o, st) {
   const EX = (child ? 8.2 : 7.9) * (F.eyeX || 1), ew = (child ? 4.6 : fem ? 4.6 : 4.4) * es, iris = o.eyes || '#5a3020';
   let eh = (child ? 6.6 : fem ? 6.3 : 5.4) * es; if (ek === 'narrow') eh *= 0.55; if (ek === 'sharp') eh *= 0.8; if (old) eh *= 0.8;
   const lashW = (F.lash || (fem || child ? 1.9 : 1.6));
+  keep = true;
   for (const sd of [-1, 1]) {
     const ex = CX + sd * EX, yE = E + 0.5, tilt = ek === 'sharp' ? 1.4 : ek === 'droopy' ? -1.4 : 0;
     const oy = -tilt * 0.6; // 바깥쪽 끝 높이 변화
@@ -674,6 +677,7 @@ function vecHuman(o, st) {
     g.beginPath(); g.moveTo(ex - ew * 0.5, topY - 1.9); g.quadraticCurveTo(ex, topY - 2.7, ex + ew * 0.7, topY - 1.7 + oy); stroke(rgba(S[3], 0.5), 0.4);
     if (old) { g.beginPath(); g.moveTo(ex - ew * 0.6, botY + 1.6); g.quadraticCurveTo(ex, botY + 2.4, ex + ew * 0.6, botY + 1.6); stroke(rgba(S[3], 0.55), 0.4); }
   }
+  keep = false;
   // ===== 눈썹 (굵기 F.brow, 모양: angry 미간 내림 / worried 미간 올림 / normal) =====
   const bk = o.browStyle || 'normal', bw = F.brow || (fem || child ? 0.9 : 1.2), bc = o.brow || H[3];
   for (const sd of [-1, 1]) {
@@ -703,7 +707,7 @@ function vecHuman(o, st) {
   else { g.beginPath(); g.moveTo(CX - 1.8 * mw, M); g.quadraticCurveTo(CX, M + 0.6, CX + 1.8 * mw, M); stroke(lc, 0.7); }
   // ===== 앞머리 =====
   const capY = yT + 17, capR = 20.5;
-  const crown = () => { g.beginPath(); g.ellipse(CX, capY, FW + 3.2, capR, 0, Math.PI, Math.PI * 2); g.lineTo(CX + FW + 3.2, capY + 2); g.quadraticCurveTo(CX, yT + 4, CX - FW - 3.2, capY + 2); g.closePath(); fill(hairCol(CX - FW, yT - 4, CX + FW, capY)); for (let i = 0; i < 9; i++) { const a = Math.PI * (1.1 + i * 0.09); g.beginPath(); g.moveTo(CX + Math.cos(a) * 3, capY - 14); g.quadraticCurveTo(CX + Math.cos(a) * (FW - 2), capY + Math.sin(a) * (capR - 4), CX + Math.cos(a) * (FW + 2), capY + 1); stroke(rgba(i % 2 ? H[4] : H[0], 0.3), 0.35); } };
+  const crown = () => { g.beginPath(); g.ellipse(CX, capY, FW + 3.2, capR, 0, Math.PI, Math.PI * 2); g.lineTo(CX + FW + 3.2, capY + 2); g.quadraticCurveTo(CX, yT + 4, CX - FW - 3.2, capY + 2); g.closePath(); fill(hairCol(CX - FW, yT - 4, CX + FW, capY)); if (FLAT) stroke(rgba(H[4], 0.9), 0.5); for (let i = 0; i < 9; i++) { const a = Math.PI * (1.1 + i * 0.09); g.beginPath(); g.moveTo(CX + Math.cos(a) * 3, capY - 14); g.quadraticCurveTo(CX + Math.cos(a) * (FW - 2), capY + Math.sin(a) * (capR - 4), CX + Math.cos(a) * (FW + 2), capY + 1); stroke(rgba(i % 2 ? H[4] : H[0], 0.3), 0.35); } };
   const shine = () => { soft(1.5, () => { g.beginPath(); g.ellipse(CX - 2, capY + 2, FW, capR - 6.5, 0, Math.PI * 1.18, Math.PI * 1.7); stroke(rgba(H[0], 0.8), 2.6); }); g.beginPath(); g.ellipse(CX, capY, FW + 3.2, capR, 0, Math.PI * 1.05, Math.PI * 1.35); stroke('rgba(255,255,255,.22)', 0.8); };
   // 앞머리 묶음: tipY 끝 높이, n 가닥 수, spread 퍼짐, sideLen 옆머리 길이, sweep 한쪽으로 쏠림, jag 들쭉날쭉
   const bangs = (tipY, n, spread, sideLen, sweep, jag) => {
@@ -760,7 +764,7 @@ function vecHuman(o, st) {
   const def = [[k.sl - 3, k.sy + 26, k.sl - 1, k.sy + 52], [k.sr + 3, k.sy + 26, k.sr + 1, k.sy + 52]];
   const pose = (st.act && o.actPose ? o.actPose(k, st) : o.pose ? o.pose(k, st) : def).map((p, i) => p || def[i]);
   const short = of === 'tee' || of === 'stripe', armS = o.sleeve ? shadeHair(o.sleeve) : topS;
-  const seg = (x0, y0, x1, y1, w, col, hi) => { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); stroke(col, w); if (hi) { g.beginPath(); g.moveTo(x0 - w * 0.12, y0); g.lineTo(x1 - w * 0.12, y1); stroke(hi, w * 0.55); } };
+  const seg = (x0, y0, x1, y1, w, col, hi) => { if (FLAT) { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); stroke(rgba(topS[4], 0.9), w + 1); hi = null; } g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); stroke(col, w); if (hi) { g.beginPath(); g.moveTo(x0 - w * 0.12, y0); g.lineTo(x1 - w * 0.12, y1); stroke(hi, w * 0.55); } };
   pose.forEach((p, i) => {
     const sx = i ? k.sr : k.sl, sy = k.sy, [ex, ey, hx, hy] = p, dx = hx - ex, dy = hy - ey, d = Math.hypot(dx, dy) || 1, cx = hx - dx / d * 4.2, cy = hy - dy / d * 4.2;
     if (short) {
