@@ -2,8 +2,8 @@
 // cfg: { title, hero:[img,img], bg(c,t,height), stepCol:[top,front], turnClimbs, controls:[..], onClear:()=>scene }
 function Stairs(cfg) {
   const S = {};
-  const DIFFS = [{ n: '1단계 · 쉬움', goal: 30, drain: 0.13 }, { n: '2단계 · 보통', goal: 50, drain: 0.18 }, { n: '3단계 · 어려움', goal: 100, drain: 0.23 }];
-  const BTN = DIFFS.map((d, i) => ({ x: W / 2 - 170, y: 200 + i * 86, w: 340, h: 70 }));
+  const DIFFS = [{ n: '1단계 · 쉬움', goal: 30, drain: 0.13 }, { n: '2단계 · 보통', goal: 50, drain: 0.18 }, { n: '3단계 · 어려움', goal: 100, drain: 0.23 }, { n: '4단계 · 매우 어려움', goal: 500, drain: 0.27 }, { n: '5단계 · 지옥', goal: 1000, drain: 0.3, hell: 1 }];
+  const BTN = DIFFS.map((d, i) => ({ x: W / 2 - 200, y: 182 + i * 66, w: 400, h: 56 }));
   const SW = 22, SH = 12;
   let paused = false, cd = 0; const PB2 = { x: 132, y: 10, w: 126, h: 34 };
   let mode = 'select', diff = null, steps, idx, face, gauge, started, hearts = 3, ft = 0, camX = 0, camY = 0, hop = 0, shake = 0;
@@ -16,7 +16,7 @@ function Stairs(cfg) {
     if (idx >= diff.goal) { mode = 'clear'; ft = 0; SFX.clear(); }
   }
   S.key = k => {
-    if (mode === 'select' && '123'.includes(k)) { diff = DIFFS[+k - 1]; SFX.click(); mode = 'howto'; return; }
+    if (mode === 'select' && '12345'.includes(k)) { diff = DIFFS[+k - 1]; SFX.click(); mode = 'howto'; return; }
     if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); build(); return; }
     if (mode === 'play' && k === 'e') { if (!paused) { paused = true; SFX.click(); } else { paused = false; cd = 3; SFX.click(); } return; }
     if (mode !== 'play' || paused || cd > 0) return;
@@ -59,8 +59,8 @@ function Stairs(cfg) {
     blitLo();
     if (mode === 'select') {
       ctx.fillStyle = 'rgba(0,0,30,.6)'; ctx.fillRect(0, 0, W, H);
-      T(cfg.title, W / 2, 100, 46, '#ffe08a', 'center', FONT_UI, '#000'); T('난이도를 골라 주세요 (숫자 1·2·3 또는 클릭)', W / 2, 155, 24, '#fff', 'center');
-      DIFFS.forEach((d, i) => { const b = BTN[i], h = inside(mouse.x, mouse.y, b); box(b.x, b.y, b.w, b.h, h ? '#ffe08a' : '#2a2a4a', '#fff', 4); T(d.n + '  —  ' + d.goal + '계단', W / 2, b.y + 37, 28, h ? '#222' : '#fff', 'center'); });
+      T(cfg.title, W / 2, 100, 46, '#ffe08a', 'center', FONT_UI, '#000'); T('난이도를 골라 주세요 (숫자 1~5 또는 클릭)', W / 2, 150, 24, '#fff', 'center');
+      DIFFS.forEach((d, i) => { const b = BTN[i], h = inside(mouse.x, mouse.y, b); box(b.x, b.y, b.w, b.h, h ? '#ffe08a' : d.hell ? '#5a0a0a' : d.goal >= 500 ? '#4a1a3a' : '#2a2a4a', d.hell ? '#ff5a3a' : '#fff', 4); T(d.n + '  —  ' + d.goal + '계단', W / 2, b.y + 30, 26, h ? '#222' : '#fff', 'center'); });
     } else if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
@@ -80,6 +80,6 @@ function Stairs(cfg) {
       else if (cd > 0) T(String(Math.ceil(cd)), W / 2, 240, 120, '#ffe08a', 'center', FONT_UI, '#000');
     }
   };
-  S.dbg = () => ({ steps, idx, face, mode }); window._st = S;
+  S.dbg = () => ({ steps, idx, face, mode }); S.jump = n => { idx = n; }; window._st = S;
   return S;
 }
