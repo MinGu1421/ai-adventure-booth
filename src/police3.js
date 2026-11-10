@@ -350,7 +350,7 @@ function PoliceEnding() {
 // 경찰서 배경 (엔딩)
 function bgStation(c, t, st) {
   // 영상 재생 때는 컴퓨터 화면을 클로즈업
-  const z = st.video ? clamp((t - st.video) / 0.8, 0, 1) : 0, zz = 1 + z * z * 1.8;
+  const z = 0, zz = 1; // 컴퓨터가 켜지면 bgStation.over 가 컴퓨터 화면을 전체 화면으로 그림
   c.save(); if (zz > 1) { const fx = lerp(240, 255, z), fy = lerp(135, 121 + 40 / 2.8, z); c.translate(240, 135); c.scale(zz, zz); c.translate(-fx, -fy); }
   R(c, -200, -200, LW + 400, 350, '#c8ccd4'); for (let x = -200; x < LW + 200; x += 40) R(c, x, 0, 2, 150, '#b8bcc4');
   R(c, -200, 150, LW + 400, 300, '#7a6a5a');
@@ -384,3 +384,51 @@ function bgStation(c, t, st) {
   spr(c, SPR.police[0], 178, 128, false, 1);
   c.restore();
 }
+// 컴퓨터가 켜지는 순간부터: 모니터 화면을 전체 화면으로 (고해상도로 직접 그림)
+bgStation.over = (t, st) => {
+  if (!st.on) return;
+  const k = clamp((t - st.on) / 0.45, 0, 1), e = 1 - Math.pow(1 - k, 3);
+  // 작은 모니터 위치에서 전체 화면으로 커지는 연출
+  const x0 = lerp(462, 0, e), y0 = lerp(214, 0, e), w0 = lerp(96, W, e), h0 = lerp(56, H, e);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, w0, h0); ctx.clip(); ctx.translate(x0, y0); ctx.scale(w0 / W, h0 / H);
+  // 모니터 테두리
+  ctx.fillStyle = '#16161c'; ctx.fillRect(0, 0, W, H);
+  const X = 26, Y = 22, SW = W - 52, SH = H - 44;
+  if (!st.video) {
+    // 부팅 화면
+    ctx.fillStyle = '#1d4fa8'; ctx.fillRect(X, Y, SW, SH);
+    T('홍산 야르 경찰서 업무용 컴퓨터', W / 2, 150, 34, '#ffffff', 'center');
+    const p = clamp((t - st.on) / 1.6, 0, 1); box(W / 2 - 200, 210, 400, 24, '#0e2a60', '#9ec0ff', 2); ctx.fillStyle = '#9ec0ff'; ctx.fillRect(W / 2 - 196, 214, 392 * p, 16);
+    T(p < 1 ? '부팅 중...' : '로그인 대기 중', W / 2, 270, 24, '#dce8ff', 'center');
+  } else {
+    const v = t - st.video;
+    ctx.fillStyle = '#0d1626'; ctx.fillRect(X, Y, SW, SH);
+    if (v < 0.9) { // 해킹 지지직
+      for (let i = 0; i < 26; i++) { ctx.fillStyle = i % 3 ? 'rgba(78,240,255,.35)' : 'rgba(255,80,160,.35)'; ctx.fillRect(X, Y + Math.random() * SH, SW, 2 + Math.random() * 8); }
+      T('▶ 알 수 없는 영상이 재생됩니다', W / 2, H / 2, 32, '#4ef0ff', 'center');
+    } else {
+      // 영상: 위에 자막, 오른쪽에 증거 카드 두 장 (왼쪽은 말하는 캐릭터 그림 자리, 아래는 대화창 자리라 비워 둠)
+      ctx.fillStyle = '#122038'; ctx.fillRect(X + 10, Y + 10, SW - 20, 56); T('▶ AI의 해명 영상  ·  REC ●', X + 30, Y + 38, 22, '#ff6a6a');
+      T('제 말은 전부 사실이에요!', 600, 110, 38, '#4ef0ff', 'center');
+      if (st.p1) { // 화투 증거
+        const cx = 310, cy = 140; box(cx, cy, 290, 240, '#1a2a44', '#4ef0ff', 3);
+        ctx.fillStyle = '#f4ead2'; ctx.fillRect(cx + 105, cy + 14, 80, 130); ctx.fillStyle = '#d8342c'; ctx.fillRect(cx + 111, cy + 20, 68, 118);
+        ctx.fillStyle = '#f2a03a'; ctx.beginPath(); ctx.arc(cx + 156, cy + 52, 17, 0, 7); ctx.fill();
+        ctx.fillStyle = '#1a3a1a'; ctx.beginPath(); ctx.moveTo(cx + 114, cy + 104); ctx.lineTo(cx + 146, cy + 80); ctx.lineTo(cx + 168, cy + 102); ctx.lineTo(cx + 132, cy + 112); ctx.fill(); ctx.fillStyle = '#3a2a1a'; ctx.fillRect(cx + 138, cy + 102, 5, 34);
+        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(cx + 163, cy + 118, 11, 7, -0.3, 0, 7); ctx.fill();
+        T('1889년 닌텐도가 만든 화투', cx + 145, cy + 180, 22, '#ffffff', 'center'); T('(조선 26대 왕 고종 때)', cx + 145, cy + 210, 18, '#bcd0ff', 'center');
+      }
+      if (st.p2) { // 꿀버섯 증거
+        const cx = 620, cy = 140; box(cx, cy, 300, 240, '#1a2a44', '#4ef0ff', 3);
+        ctx.fillStyle = '#2a4a2a'; ctx.fillRect(cx + 20, cy + 110, 260, 30); ctx.fillStyle = '#e8dcc0'; ctx.fillRect(cx + 133, cy + 56, 34, 60);
+        ctx.fillStyle = '#c87a3a'; ctx.beginPath(); ctx.ellipse(cx + 150, cy + 58, 66, 34, 0, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#f2c890'; ctx.beginPath(); ctx.arc(cx + 126, cy + 44, 7, 0, 7); ctx.arc(cx + 172, cy + 38, 5, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#d8c090'; ctx.lineWidth = 2; for (let i = 0; i < 8; i++) { ctx.beginPath(); ctx.moveTo(cx + 36 + i * 30, cy + 122); ctx.quadraticCurveTo(cx + 52 + i * 28, cy + 134, cx + 28 + i * 32, cy + 138); ctx.stroke(); }
+        T('세계에서 가장 큰 생명체: 꿀버섯', cx + 150, cy + 180, 21, '#ffffff', 'center'); T('땅속 균사 넓이 약 9.6㎢ (미국 오리건주)', cx + 150, cy + 210, 17, '#bcd0ff', 'center');
+      }
+      if (st.proof) { T('✔ 사실 확인 완료', W - 140, Y + 38, 24, '#7cf27c', 'center'); }
+    }
+    // 화면 반사광
+    ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(X + SW * 0.4, Y); ctx.lineTo(X + SW * 0.15, Y + SH); ctx.lineTo(X, Y + SH); ctx.fill();
+  }
+  ctx.restore();
+};

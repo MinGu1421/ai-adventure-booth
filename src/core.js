@@ -5,7 +5,9 @@ const ctx = cv.getContext('2d');
 const lo = document.createElement('canvas'); lo.width = LW; lo.height = LH;
 const L = lo.getContext('2d');
 ctx.imageSmoothingEnabled = false; L.imageSmoothingEnabled = false;
-function fit() { const s = Math.min(innerWidth / W, innerHeight / H); cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; }
+// 화면 크기 × 기기 픽셀 배율만큼 실제 해상도를 높여서 글씨를 선명하게 (게임 좌표는 960×540 그대로)
+let RS = 1;
+function fit() { const s = Math.min(innerWidth / W, innerHeight / H); cv.style.width = W * s + 'px'; cv.style.height = H * s + 'px'; RS = Math.max(1, Math.min(4, s * (window.devicePixelRatio || 1))); cv.width = Math.round(W * RS); cv.height = Math.round(H * RS); ctx.imageSmoothingEnabled = false; }
 addEventListener('resize', fit); fit();
 
 const FONT_UI = '"Do Hyeon", "Malgun Gothic", sans-serif';
@@ -128,7 +130,7 @@ function loop(now) {
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (trans.dir === 1) { trans.a += dt * 4; if (trans.a >= 1) { trans.a = 1; trans.dir = -1; setScene(trans.next); } }
   else if (trans.dir === -1) { trans.a -= dt * 4; if (trans.a <= 0) { trans.a = 0; trans.dir = 0; } }
-  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); }
+  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); }
   if (trans.a > 0) { ctx.fillStyle = 'rgba(0,0,0,' + trans.a + ')'; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(loop);
 }
