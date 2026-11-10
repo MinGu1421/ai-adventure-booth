@@ -276,7 +276,18 @@ function portraitState(k, talking) {
   return { blink, act, look, talk: talking && ((t * 9) | 0) % 2 === 0, frame: (t * 12) | 0, breath: Math.sin(t * 1.9 + sd * 3) };
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
+// 그림 파일이 있으면 그 그림을 우선 사용 (portraits/<캐릭터>.png, 배경 투명, 가슴 위 상반신, 세로 2:3)
+const PIMG = {};
+['fool', 'granny', 'adult', 'genius', 'kid', 'boy', 'girl', 'police', 'soldier', 'romi', 'yena', 'owner'].forEach(k => { const im = new Image(); im.onload = () => { PIMG[k] = im; }; im.src = 'portraits/' + k + '.png'; });
 function drawPortrait(k, x, y, s, crop, talking) {
+  const pi = PIMG[k];
+  if (pi) { // 그림 파일: 96x144 칸에 맞춰 아래 가운데 정렬, 말할 때 살짝 들썩임
+    // 그림 폭을 칸보다 조금 넓게, 아래쪽(어깨)이 대화창 바로 위에 오도록 배치. 말할 때 살짝 들썩임
+    const t = performance.now() / 1000, bw = 96 * s, bh = 144 * s, dw = bw * 1.15, dh = dw * pi.naturalHeight / pi.naturalWidth;
+    const ch = crop ? crop / 144 : 1, by = (talking ? Math.abs(Math.sin(t * 9)) * -3 : Math.sin(t * 1.9) * 1.5) * s / 2.5, bot = crop ? y + crop * s : y + bh * 0.82;
+    ctx.save(); ctx.beginPath(); if (crop) ctx.rect(x, y, bw, crop * s); else ctx.rect(x - bw * 0.3, y - 30, bw * 1.6, bh + 30); ctx.clip(); const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(pi, x + (bw - dw) / 2, bot - dh + by, dw, dh); ctx.imageSmoothingEnabled = sm; ctx.restore(); return;
+  }
   const st = portraitState(k, talking), img = portrait(k, st), q = img.width / (img.base || img.width), h = (crop || 144) * q;
   const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180, dw = 96 * s, dh = h / q * s;
   const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
