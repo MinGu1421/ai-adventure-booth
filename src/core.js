@@ -29,6 +29,8 @@ function spr(c, img, x, y, flip, scale) {
 }
 function T(s, x, y, size, col, align, font, stroke) {
   ctx.font = size + 'px ' + (font || FONT_UI); ctx.textAlign = align || 'left'; ctx.textBaseline = 'middle';
+  // 배경과 대비되도록: 따로 지정한 테두리가 없으면 글자색 밝기에 맞춰 반대색 테두리를 자동으로 둘러줌
+  if (!stroke && typeof col === 'string' && col[0] === '#') { const v = col.length < 6 ? col.slice(1).split('').map(c => parseInt(c + c, 16)) : [1, 3, 5].map(i => parseInt(col.slice(i, i + 2), 16)); const lum = (0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]) / 255; stroke = lum > 0.5 ? 'rgba(10,12,30,.85)' : 'rgba(255,255,255,.9)'; ctx.lineWidth = Math.max(2.5, size / 8); ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); stroke = null; }
   if (stroke) { ctx.lineWidth = Math.max(3, size / 6); ctx.strokeStyle = stroke; ctx.lineJoin = 'round'; ctx.strokeText(s, x, y); }
   ctx.fillStyle = col || '#fff'; ctx.fillText(s, x, y);
 }

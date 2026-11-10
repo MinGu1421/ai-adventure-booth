@@ -26,10 +26,6 @@ function MainMenu() {
   S.click = (x, y) => B.forEach(b => { if (inside(x, y, b)) { SFX.ok(); go(b.go()); } });
   S.draw = () => {
     L.clearRect(0, 0, LW, LH); bgMenu(L, S.t); blitLo();
-    // 배경의 경찰이 AI를 쫓으며 외치는 말풍선
-    { const px = (60 + ((S.t * 40) % 420)) * 2, py = 228 * 2; if ((S.t % 3) < 2 && px < W - 60) {
-      const bx = px - 14, by = py - 50; box(bx, by, 112, 34, '#fff', '#222', 2); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(px + 10, by + 32); ctx.lineTo(px + 18, by + 32); ctx.lineTo(px + 12, by + 42); ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px + 10, by + 33); ctx.lineTo(px + 12, by + 42); ctx.lineTo(px + 18, by + 33); ctx.stroke();
-      T('거기 서라!', bx + 56, by + 18, 19, '#c81818', 'center'); } }
     T('우리가 만드는 강당 AI 과학 체험부스', W / 2, 80, 30, '#bcd0ff', 'center', FONT_UI, '#000');
     T('AI 어드벤처', W / 2, 140, 72, '#ffe08a', 'center', FONT_UI, '#2a1a00');
     B.forEach((b, i) => {
@@ -40,6 +36,10 @@ function MainMenu() {
       if (b.warn) T(b.warn, b.x + 268, b.y + 38 + (h ? -4 : 0), 17, h ? '#b01818' : '#ff8a8a', 'left', FONT_TX);
       T(b.s, b.x + 110, b.y + 72 + (h ? -4 : 0), 20, h ? '#5a3a10' : '#bcd0ff', 'left', FONT_TX);
     });
+    // 배경의 경찰이 AI를 쫓으며 외치는 말풍선 (경찰 왼쪽, 버튼·AI와 겹치지 않게)
+    { const px = (60 + ((S.t * 40) % 420)) * 2, py = 228 * 2; if ((S.t % 3) < 2 && px > 140) {
+      const bx = px - 128, by = py - 4; box(bx, by, 112, 34, '#fff', '#222', 2); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(bx + 108, by + 10); ctx.lineTo(bx + 124, by + 18); ctx.lineTo(bx + 108, by + 24); ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx + 111, by + 10); ctx.lineTo(bx + 124, by + 18); ctx.lineTo(bx + 111, by + 24); ctx.stroke();
+      T('거기 서라!', bx + 56, by + 18, 19, '#c81818', 'center'); } }
     T('마우스를 버튼에 가져다 대고 클릭하세요', W / 2, H - 30, 20, '#ccd', 'center');
   };
   return S;
