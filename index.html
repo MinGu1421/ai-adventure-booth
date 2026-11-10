@@ -531,17 +531,32 @@ function portraitState(k, talking) {
   return { blink, act, look, talk: talking && ((t * 9) | 0) % 2 === 0, frame: (t * 12) | 0, breath: Math.sin(t * 1.9 + sd * 3) };
 }
 // 초상 그리기: s = 배율, crop = 위에서부터 보여줄 높이(원본 px), talking = 말하는 중
-// 그림 파일이 있으면 그 그림을 우선 사용 (portraits/<캐릭터>.png, 배경 투명, 가슴 위 상반신, 세로 2:3)
+// 그림 파일 스탠딩 일러스트 (portraits/*.png, 배경 투명). AI 로봇은 표정 그림 여러 장을 번갈아 씀
 const PIMG = {};
-['fool', 'granny', 'adult', 'genius', 'kid', 'boy', 'girl', 'police', 'soldier', 'romi', 'yena', 'owner'].forEach(k => { const im = new Image(); im.onload = () => { PIMG[k] = im; }; im.src = 'portraits/' + k + '.png'; });
+['fool', 'granny', 'adult', 'genius', 'kid', 'boy', 'girl', 'police', 'soldier', 'romi', 'yena', 'owner', 'ai_idle', 'ai_happy', 'ai_wink', 'ai_wink2'].forEach(k => { const im = new Image(); im.onload = () => { PIMG[k] = im; }; im.src = 'portraits/' + k + '.png'; });
+let P_LAST = { k: null, t0: 0 };
+// 로봇 화면 표정: 평소엔 무표정, 가끔 웃는 눈(깜빡임 대신), 말할 때는 표정이 바뀌며 입이 움직이는 느낌
+function robotFrame(t, talking) {
+  if (talking) { const p = Math.floor(t / 0.2) % 6; return p === 5 ? 'ai_wink' : p % 2 ? 'ai_happy' : 'ai_idle'; }
+  const c = t % 5.2; return c > 4.85 ? 'ai_happy' : c > 2.4 && c < 2.75 ? 'ai_wink2' : 'ai_idle';
+}
 function drawPortrait(k, x, y, s, crop, talking) {
-  const pi = PIMG[k];
-  if (pi) { // 그림 파일: 96x144 칸에 맞춰 아래 가운데 정렬, 말할 때 살짝 들썩임
-    // 그림 폭을 칸보다 조금 넓게, 아래쪽(어깨)이 대화창 바로 위에 오도록 배치. 말할 때 살짝 들썩임
-    const t = performance.now() / 1000, bw = 96 * s, bh = 144 * s, dw = bw * 1.15, dh = dw * pi.naturalHeight / pi.naturalWidth;
-    const ch = crop ? crop / 144 : 1, by = (talking ? Math.abs(Math.sin(t * 9)) * -3 : Math.sin(t * 1.9) * 1.5) * s / 2.5, bot = crop ? y + crop * s : y + bh * 0.82;
-    ctx.save(); ctx.beginPath(); if (crop) ctx.rect(x, y, bw, crop * s); else ctx.rect(x - bw * 0.3, y - 30, bw * 1.6, bh + 30); ctx.clip(); const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(pi, x + (bw - dw) / 2, bot - dh + by, dw, dh); ctx.imageSmoothingEnabled = sm; ctx.restore(); return;
+  const now = performance.now() / 1000, pk = k === 'ai' ? (PIMG.ai_idle ? robotFrame(now, talking) : null) : k, pi = pk && PIMG[pk];
+  if (pi) {
+    // 그림 폭을 칸보다 조금 넓게, 어깨가 대화창 바로 위에 오도록. 자연스러운 움직임: 숨쉬기·살짝 흔들림·말할 때 끄덕임·등장할 때 미끄러져 들어옴
+    const bw = 96 * s, bh = 144 * s, dw = bw * 1.15, dh = dw * pi.naturalHeight / pi.naturalWidth, sd = (PSEED[k] || 0) * 3;
+    const bot = crop ? y + crop * s : y + bh * 0.82, cx = x + bw / 2;
+    let ent = 1; if (!crop) { if (P_LAST.k !== k) P_LAST = { k, t0: now }; ent = Math.min(1, (now - P_LAST.t0) / 0.35); ent = 1 - Math.pow(1 - ent, 3); }
+    const st = portraitState(k, talking), sc = s / 2.5;
+    const breath = 1 + Math.sin(now * 2.1 + sd) * 0.010;
+    let rot = Math.sin(now * 0.8 + sd) * 0.012, dy = 0, dx = (1 - ent) * 26 * (x > W / 2 ? 1 : -1);
+    if (talking) { dy -= Math.abs(Math.sin(now * 7.5)) * 3.2 * sc; rot += Math.sin(now * 3.7 + sd) * 0.018; }
+    if (st.act && !crop) { const ph = ((now + (PSEED[k] || 0) * 2.3) % (5.5 + (PSEED[k] || 0))) - (5.5 + (PSEED[k] || 0) - 1.4); dy -= Math.sin(Math.max(0, Math.min(1, ph / 1.4)) * Math.PI) * 5 * sc; rot += Math.sin(Math.max(0, Math.min(1, ph / 1.4)) * Math.PI * 2) * 0.03; }
+    if (crop) { rot *= 0.4; }
+    ctx.save(); ctx.beginPath(); if (crop) ctx.rect(x, y, bw, crop * s); else ctx.rect(x - bw * 0.4, y - 40, bw * 1.8, bh + 40); ctx.clip();
+    const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.globalAlpha = ent;
+    ctx.translate(cx + dx, bot + dy); ctx.rotate(rot); ctx.scale(1, breath); ctx.drawImage(pi, -dw / 2, -dh, dw, dh);
+    ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm; ctx.restore(); return;
   }
   const st = portraitState(k, talking), img = portrait(k, st), q = img.width / (img.base || img.width), h = (crop || 144) * q;
   const by = Math.round(st.breath) * s, tl = ((CHAR[k] && CHAR[k].tilt) || 0) * Math.PI / 180, dw = 96 * s, dh = h / q * s;
