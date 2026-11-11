@@ -73,12 +73,23 @@ async function hallOffer(name, pts) {
   return total;
 }
 
+// 닉네임 정하기: 서버에 이미 있는 이름이면 다시 입력하게 함 (인터넷이 끊겼을 때만 그냥 사용)
+function askNickname(title, hint, done, cancel) {
+  askText(title, hint, '', 10, v => {
+    if (v === ECO.nick) { done && done(v); return; }
+    fetch(SB_URL + '/rest/v1/rpc/booth_claim', { method: 'POST', headers: SB_H, body: JSON.stringify({ p_name: v }) })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(ok => { if (ok === true) { ECO.nick = v; ecoSave(); SFX.ok(); done && done(v); } else { SFX.bad(); askNickname('"' + v + '"은(는) 이미 있는 닉네임이에요', '다른 닉네임을 정해 주세요 (10자 이내)', done, cancel); } })
+      .catch(() => { ECO.nick = v; ecoSave(); SFX.ok(); done && done(v); });
+  }, cancel);
+}
+
 // ---------- 명예의 전당 ----------
 function HallOfFame() {
   const S = { noHome: true };
   const BC = { x: 120, y: 420, w: 220, h: 56 }, BG = { x: 370, y: 420, w: 220, h: 56 }, BN = { x: 620, y: 420, w: 220, h: 56 };
   let msg = '', msgT = 0;
-  const askNick = (first) => askText(first ? '명예의 전당 첫 입장! 닉네임을 정해 주세요' : '닉네임 바꾸기', '누가 세운 기록인지 알 수 있도록 이름을 남겨요 (10자 이내)', ECO.nick, 10, v => { ECO.nick = v; ecoSave(); SFX.ok(); }, first ? null : () => { });
+  const askNick = (first) => askNickname(first ? '명예의 전당 첫 입장! 닉네임을 정해 주세요' : '새 닉네임 정하기', '다른 사람이 쓰는 닉네임은 쓸 수 없어요 (10자 이내)', null, first ? null : () => { });
   let sending = false;
   S.enter = () => { hallFetch(); if (!ECO.nick) setTimeout(() => askNick(true), 350); };
   const offer = (coins, gems) => {
@@ -159,7 +170,7 @@ function PetShop() {
   S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#21402e'; ctx.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 40) { ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, 0, 20, H); }
-    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 메인 화면에서 함께 뛰어놀아요');
+    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 화면을 자유롭게 돌아다녀요');
     cards.forEach(c => {
       const [name, price, , , kind] = PETS[c.i], can = ECO.coins >= price, h = inside(mouse.x, mouse.y, c);
       box(c.x, c.y - (h ? 4 : 0), c.w, c.h, h ? '#fff3c8' : '#fff8e6', can ? '#3a2a1a' : '#9a9a9a', 3);

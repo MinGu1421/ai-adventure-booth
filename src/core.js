@@ -130,7 +130,7 @@ function loop(now) {
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (trans.dir === 1) { trans.a += dt * 4; if (trans.a >= 1) { trans.a = 1; trans.dir = -1; setScene(trans.next); } }
   else if (trans.dir === -1) { trans.a -= dt * 4; if (trans.a <= 0) { trans.a = 0; trans.dir = 0; } }
-  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); }
+  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); if (!scene.stairs && typeof petsUpdate === 'function') { petsUpdate(dt); petsDraw(); } }
   if (trans.a > 0) { ctx.fillStyle = 'rgba(0,0,0,' + trans.a + ')'; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(loop);
 }

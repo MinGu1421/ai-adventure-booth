@@ -1,5 +1,5 @@
 import os
-order=['core','economy','portrait','human','art','stairs','police','police2','police3','dog','dog2','main']
+order=['core','economy','portrait','human','art','stairs','police','police2','police3','dog','dog2','pets','plaza','main']
 js='\n'.join(open(f'src/{n}.js').read() for n in order if os.path.exists(f'src/{n}.js'))
 html=f'''<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">

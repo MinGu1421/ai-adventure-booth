@@ -138,7 +138,7 @@ function loop(now) {
   let dt = Math.min(0.05, (now - last) / 1000); last = now;
   if (trans.dir === 1) { trans.a += dt * 4; if (trans.a >= 1) { trans.a = 1; trans.dir = -1; setScene(trans.next); } }
   else if (trans.dir === -1) { trans.a -= dt * 4; if (trans.a <= 0) { trans.a = 0; trans.dir = 0; } }
-  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); }
+  if (scene) { scene.t += dt; scene.update && scene.update(dt); ctx.setTransform(RS, 0, 0, RS, 0, 0); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); scene.draw(); if (!scene.noHome) drawHome(); if (!scene.stairs && typeof petsUpdate === 'function') { petsUpdate(dt); petsDraw(); } }
   if (trans.a > 0) { ctx.fillStyle = 'rgba(0,0,0,' + trans.a + ')'; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(loop);
 }
@@ -330,12 +330,23 @@ async function hallOffer(name, pts) {
   return total;
 }
 
+// 닉네임 정하기: 서버에 이미 있는 이름이면 다시 입력하게 함 (인터넷이 끊겼을 때만 그냥 사용)
+function askNickname(title, hint, done, cancel) {
+  askText(title, hint, '', 10, v => {
+    if (v === ECO.nick) { done && done(v); return; }
+    fetch(SB_URL + '/rest/v1/rpc/booth_claim', { method: 'POST', headers: SB_H, body: JSON.stringify({ p_name: v }) })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(ok => { if (ok === true) { ECO.nick = v; ecoSave(); SFX.ok(); done && done(v); } else { SFX.bad(); askNickname('"' + v + '"은(는) 이미 있는 닉네임이에요', '다른 닉네임을 정해 주세요 (10자 이내)', done, cancel); } })
+      .catch(() => { ECO.nick = v; ecoSave(); SFX.ok(); done && done(v); });
+  }, cancel);
+}
+
 // ---------- 명예의 전당 ----------
 function HallOfFame() {
   const S = { noHome: true };
   const BC = { x: 120, y: 420, w: 220, h: 56 }, BG = { x: 370, y: 420, w: 220, h: 56 }, BN = { x: 620, y: 420, w: 220, h: 56 };
   let msg = '', msgT = 0;
-  const askNick = (first) => askText(first ? '명예의 전당 첫 입장! 닉네임을 정해 주세요' : '닉네임 바꾸기', '누가 세운 기록인지 알 수 있도록 이름을 남겨요 (10자 이내)', ECO.nick, 10, v => { ECO.nick = v; ecoSave(); SFX.ok(); }, first ? null : () => { });
+  const askNick = (first) => askNickname(first ? '명예의 전당 첫 입장! 닉네임을 정해 주세요' : '새 닉네임 정하기', '다른 사람이 쓰는 닉네임은 쓸 수 없어요 (10자 이내)', null, first ? null : () => { });
   let sending = false;
   S.enter = () => { hallFetch(); if (!ECO.nick) setTimeout(() => askNick(true), 350); };
   const offer = (coins, gems) => {
@@ -416,7 +427,7 @@ function PetShop() {
   S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#21402e'; ctx.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 40) { ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, 0, 20, H); }
-    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 메인 화면에서 함께 뛰어놀아요');
+    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 화면을 자유롭게 돌아다녀요');
     cards.forEach(c => {
       const [name, price, , , kind] = PETS[c.i], can = ECO.coins >= price, h = inside(mouse.x, mouse.y, c);
       box(c.x, c.y - (h ? 4 : 0), c.w, c.h, h ? '#fff3c8' : '#fff8e6', can ? '#3a2a1a' : '#9a9a9a', 3);
@@ -1172,7 +1183,7 @@ function bgFree(c, t) {
 // ===================== 무한의 계단 (공용) =====================
 // cfg: { title, hero:[img,img], bg(c,t,height), stepCol:[top,front], turnClimbs, controls:[..], onClear:()=>scene }
 function Stairs(cfg) {
-  const S = {};
+  const S = { stairs: true };
   const DIFFS = [{ n: '1단계 · 쉬움', goal: 30, drain: 0.13 }, { n: '2단계 · 보통', goal: 50, drain: 0.18 }, { n: '3단계 · 어려움', goal: 100, drain: 0.23 }, { n: '4단계 · 매우 어려움', goal: 500, drain: 0.27 }, { n: '5단계 · 지옥', goal: 1000, drain: 0.3, hell: 1 }];
   const BTN = DIFFS.map((d, i) => ({ x: W / 2 - 200, y: 182 + i * 66, w: 400, h: 56 }));
   const SW = 22, SH = 12;
@@ -1224,6 +1235,7 @@ function Stairs(cfg) {
         if (items[i]) { const bob = Math.sin(S.t * 5 + i) * 1.5; L.drawImage(items[i] === 'g' ? GEM_IMG : COIN_IMG, x + SW / 2 - 4, y - 11 + bob, 8, 8); }
         if (i === diff.goal) { R(L, x + SW / 2, y - 26, 2, 26, '#eee'); R(L, x + SW / 2 + 2, y - 26, 12, 8, '#ff4a4a'); }
       }
+      if (mode !== 'retry') petsFollow(L, steps, idx, ox, oy, SW, SH, 1 / 60, S.t);
       const ho = cfg.heroOff || [8, 24]; let px = ox + steps[idx] * SW - ho[0], py = oy - idx * SH - ho[1] - Math.sin(hop * Math.PI) * 5;
       let fr = hop > 0.3 ? 1 : 0;
       if (mode === 'fall') { py += ft * ft * 260; px += face * ft * 30; fr = (S.t * 10 | 0) % 2; }
@@ -2535,6 +2547,229 @@ function HappyEnding() {
   ], () => Ending('해피 엔딩', '강아지 로봇은 대피소 안에서 가족들을 다시 만났어요!\n\n쪽지와 지도, 그리고 펜던트라는 확실한 증거 덕분에\n군인들도 강아지 로봇의 말을 믿을 수 있었답니다.', '#ffe08a', bgHome));
 }
 
+// ===================== 펫: 화면을 자유롭게 돌아다니기 (시메지 방식) =====================
+// 무한의 계단 스테이지(scene.stairs)에서는 캐릭터 뒤를 따라다니고, 그 외 모든 화면에서는
+// 화면 테두리를 타고 오르고, 천장을 기고, 떨어지고, 펫마다 고유 동작을 한다. 클릭은 막지 않는다.
+const PS = 34;            // 화면에서 펫 크기
+const PET_ACT = { chick: '콕콕', ham: '데굴데굴', bun: '깡총', cat: '쿨쿨', dog: '멍!', peng: '슝~', fox: '폴짝!', dragon: '훨훨' };
+let WALK = [];
+function petsSync() {
+  if (WALK.length !== ECO.pets.length || WALK.some((w, i) => w.kind !== ECO.pets[i].kind)) {
+    WALK = ECO.pets.map((p, i) => (WALK[i] && WALK[i].kind === p.kind) ? WALK[i] : { kind: p.kind, x: 120 + Math.random() * (W - 240), y: -PS - i * 30, vx: 0, vy: 0, surf: 'air', st: 'fall', tm: 0, dir: Math.random() < 0.5 ? -1 : 1, spin: 0, say: '', sayT: 0 });
+  }
+  WALK.forEach((w, i) => w.name = ECO.pets[i].name);
+}
+function petPick(w) { // 바닥에서 다음 행동 고르기
+  const r = Math.random();
+  if (r < 0.38) { w.st = 'walk'; w.tm = 2 + Math.random() * 4; if (Math.random() < 0.4) w.dir = -w.dir; }
+  else if (r < 0.55) { w.st = 'sit'; w.tm = 1.5 + Math.random() * 2.5; }
+  else if (r < 0.72) { w.st = 'act'; w.tm = w.kind === 'cat' ? 4 : 1.6; w.say = PET_ACT[w.kind]; w.sayT = 1.4; if (w.kind === 'bun' || w.kind === 'fox') { w.surf = 'air'; w.st = 'fall'; w.vy = -420; w.vx = w.dir * (w.kind === 'fox' ? 260 : 120); } if (w.kind === 'dragon') { w.st = 'fly'; w.surf = 'air'; w.tm = 4 + Math.random() * 3; } }
+  else if (r < 0.9) { w.st = 'walk'; w.tm = 9; w.wantWall = true; }            // 벽까지 가서 오르기
+  else { w.surf = 'air'; w.st = 'fall'; w.vy = -300; w.vx = w.dir * 90; }       // 점프
+}
+function petsUpdate(dt) {
+  petsSync();
+  const G = 1100, top = 0, bot = H - PS, lft = 0, rgt = W - PS;
+  WALK.forEach(w => {
+    w.tm -= dt; if (w.sayT > 0) w.sayT -= dt;
+    if (w.surf === 'air') {
+      if (w.st === 'fly') { // 아기 용: 하늘을 날아다님
+        w.x += w.dir * 90 * dt; w.y += Math.sin(performance.now() / 300) * 40 * dt - (w.y - 140) * 0.6 * dt;
+        if (w.x < lft || w.x > rgt) { w.dir = -w.dir; w.x = Math.max(lft, Math.min(rgt, w.x)); }
+        if (w.tm <= 0) { w.st = 'fall'; w.vy = 0; w.vx = w.dir * 40; }
+        return;
+      }
+      w.vy += G * dt; w.x += w.vx * dt; w.y += w.vy * dt;
+      if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x)); if (Math.random() < 0.6 && w.y > 40 && w.y < bot - 20) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 2 + Math.random() * 4; w.vx = w.vy = 0; } else w.vx = -w.vx * 0.5; }
+      if (w.y < top) { w.y = top; w.vy = 0; }
+      if (w.y >= bot) { w.y = bot; w.vy = 0; w.vx = 0; w.surf = 'floor'; w.st = 'sit'; w.tm = 0.5 + Math.random(); w.spin = 0; }
+      if (w.kind === 'ham' && w.st === 'fall') w.spin += dt * 10;
+      return;
+    }
+    if (w.surf === 'floor') {
+      if (w.st === 'walk' || (w.st === 'act' && (w.kind === 'peng' || w.kind === 'ham'))) {
+        const sp = w.st === 'act' ? (w.kind === 'peng' ? 260 : 180) : 46 + (w.kind === 'dog' ? 20 : 0);
+        w.x += w.dir * sp * dt; if (w.kind === 'ham' && w.st === 'act') w.spin += w.dir * dt * 12;
+        if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x));
+          if (w.wantWall || Math.random() < 0.35) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 3 + Math.random() * 6; w.wantWall = false; } else w.dir = -w.dir; }
+      }
+      if (w.tm <= 0) { w.wantWall = false; w.spin = 0; petPick(w); }
+      return;
+    }
+    if (w.surf === 'left' || w.surf === 'right') { // 벽 타기
+      if (w.st === 'climb') { w.y -= 52 * dt; if (Math.random() < dt * 0.4) { w.st = 'hang'; w.tm = 0.8 + Math.random() * 1.5; } }
+      else if (w.st === 'hang' && w.tm <= 0) w.st = 'climb';
+      if (w.y <= top) { w.y = top; w.surf = 'ceil'; w.st = 'crawl'; w.tm = 2 + Math.random() * 5; w.dir = w.x <= lft ? 1 : -1; }
+      else if (w.tm <= 0 && w.st === 'climb' && Math.random() < 0.5) { w.surf = 'air'; w.st = 'fall'; w.vx = (w.x <= lft ? 1 : -1) * 120; w.vy = -60; w.dir = w.x <= lft ? 1 : -1; }
+      else if (w.tm <= 0) w.tm = 1 + Math.random() * 3;
+      return;
+    }
+    if (w.surf === 'ceil') { // 천장 기기
+      w.x += w.dir * 40 * dt;
+      if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x)); w.dir = -w.dir; }
+      if (w.tm <= 0) { w.surf = 'air'; w.st = 'fall'; w.vx = 0; w.vy = 0; w.say = '으앗!'; w.sayT = 1; }
+    }
+  });
+}
+function petsDraw() {
+  const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+  const now = performance.now() / 1000;
+  WALK.forEach((w, i) => {
+    const moving = w.st === 'walk' || w.st === 'climb' || w.st === 'crawl' || w.st === 'fly' || (w.st === 'act' && w.kind !== 'cat');
+    const f = moving ? ((now * 8 + i) | 0) % 2 : 0;
+    let rot = 0, flip = w.dir < 0;
+    if (w.surf === 'left') { rot = Math.PI / 2; flip = true; }      // 발이 왼쪽 벽, 머리는 위
+    if (w.surf === 'right') { rot = -Math.PI / 2; flip = false; }   // 발이 오른쪽 벽, 머리는 위
+    if (w.surf === 'ceil') { rot = Math.PI; flip = w.dir > 0; }     // 거꾸로 매달림
+    let bob = 0, sy = 1;
+    if (w.st === 'act' && w.kind === 'chick') bob = Math.abs(Math.sin(now * 14)) * 4;
+    if (w.st === 'act' && w.kind === 'dog') rot += Math.sin(now * 30) * 0.08;
+    if (w.st === 'sit') sy = 0.92;
+    if (w.st === 'act' && w.kind === 'cat') sy = 0.8;
+    const cx = w.x + PS / 2, cy = w.y + PS / 2;
+    ctx.save(); ctx.translate(cx, cy + bob); ctx.rotate(rot + w.spin); ctx.scale(flip ? -1 : 1, sy);
+    if (w.st === 'sit' || (w.st === 'act' && w.kind === 'cat')) ctx.translate(0, PS * (1 - sy) / 2 / sy);
+    ctx.drawImage(petImg(w.kind, f), -PS / 2, -PS / 2, PS, PS); ctx.restore();
+    if (w.st === 'fly' && ((now * 3 | 0) % 2)) { ctx.fillStyle = 'rgba(255,140,40,.8)'; ctx.fillRect(w.x + (w.dir > 0 ? PS : -8), w.y + 10, 8, 6); }
+    const hov = Math.abs(mouse.x - cx) < PS / 2 && Math.abs(mouse.y - cy) < PS / 2;
+    const tx = Math.max(30, Math.min(W - 30, cx)), ty = w.surf === 'ceil' ? w.y + PS + 16 : Math.max(14, w.y - 8);
+    if (w.st === 'act' && w.kind === 'cat' && w.surf === 'floor') T('z'.repeat(1 + ((now * 2) | 0) % 3), w.x + PS, w.y - 4, 16, '#cfe', 'left');
+    if (w.sayT > 0) T(w.say, tx, ty, 16, '#fff', 'center', FONT_UI, '#000');
+    else if (hov) T('♥ ' + w.name, tx, ty, 15, '#ffd0e0', 'center', FONT_UI, '#000');
+    else if (w.surf === 'floor') T(w.name, tx, ty, 13, '#fff', 'center', FONT_UI, '#000');
+  });
+  ctx.imageSmoothingEnabled = sm;
+}
+// 무한의 계단: 펫이 캐릭터가 지나온 계단을 따라 뒤에서 쫓아옴 (저해상도 캔버스 L에 그림)
+const FOLLOW = [];
+function petsFollow(c, steps, idx, ox, oy, SW, SH, dt, t) {
+  ECO.pets.forEach((p, k) => {
+    const j = Math.max(0, idx - 1 - k), tx = ox + steps[j] * SW - 6, ty = oy - j * SH - 12;
+    const f = FOLLOW[k] || (FOLLOW[k] = { x: tx, y: ty, d: 1 });
+    if (Math.abs(f.x - tx) > 80 || Math.abs(f.y - ty) > 80) { f.x = tx; f.y = ty; }
+    const nx = f.x + (tx - f.x) * Math.min(1, dt * 9); if (Math.abs(nx - f.x) > 0.05) f.d = nx > f.x ? 1 : -1;
+    f.x = nx; f.y += (ty - f.y) * Math.min(1, dt * 9);
+    const hop = Math.abs(tx - f.x) + Math.abs(ty - f.y) > 1 ? Math.abs(Math.sin(t * 12 + k)) * 2 : 0;
+    spr(c, petImg(p.kind, hop > 1 ? 1 : 0), f.x, f.y - hop, f.d < 0, 0.75);
+  });
+}
+
+// ===================== 만남의 광장 : 4대 컴퓨터의 친구들이 함께 모이는 곳 (Supabase) =====================
+// 방향키/WASD로 걷기 · 이모티콘 버튼 · Enter로 채팅(나쁜 말은 서버에서 ♥♥로 가려짐)
+const LOOKS = [['#e84a4a', '#3a2a8a'], ['#3a8ae8', '#2a2a3a'], ['#3ac86a', '#5a3a1a'], ['#f2a02a', '#2a4a6a'], ['#b05ae8', '#3a2a2a'], ['#ff7ab0', '#2a3a5a']];
+const AVA = {};
+function avaImg(look, f) {
+  const k = look + '_' + f; if (AVA[k]) return AVA[k];
+  const [shirt, pants] = LOOKS[look % LOOKS.length], skin = '#ffd2a8', hair = '#3a2414', o = '#1a1210';
+  return AVA[k] = mk(12, 18, p => {
+    p(3, 0, 6, 2, hair); p(2, 1, 8, 3, hair); p(3, 3, 6, 5, skin); p(2, 3, 1, 2, hair); p(9, 3, 1, 2, hair);
+    p(4, 5, 1, 1, o); p(7, 5, 1, 1, o); p(5, 7, 2, 1, '#d87a6a');
+    p(2, 8, 8, 5, shirt); p(1, 9, 1, 3, shirt); p(10, 9, 1, 3, shirt); p(1, 12, 1, 1, skin); p(10, 12, 1, 1, skin);
+    p(3, 13, 6, 2, pants);
+    if (f) { p(3, 15, 2, 2, pants); p(7, 15, 2, 1, pants); p(3, 17, 2, 1, o); p(7, 16, 2, 1, o); }
+    else { p(3, 15, 2, 2, pants); p(7, 15, 2, 2, pants); p(3, 17, 2, 1, o); p(7, 17, 2, 1, o); }
+  });
+}
+const nickLook = n => { let h = 0; for (const ch of n || '') h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % LOOKS.length; };
+
+function Plaza() {
+  const S = { noHome: true };
+  const me = { x: 300 + Math.random() * 360, y: 400, dir: 1, walk: 0, emote: '', emoteT: 0, say: '', sayT: 0 };
+  const EMO = ['👋', '❤️', '😂', '👍', '🎉', '😮'];
+  const EB = EMO.map((e, i) => ({ x: 214 + i * 64, y: 482, w: 56, h: 46, e }));
+  const CB = { x: 614, y: 482, w: 196, h: 46 };
+  const FX = 480, FY = 300, FR = 78;              // 분수대 (못 지나감)
+  let others = {}, chat = [], online = null, busy = false, lastSync = -9, sendEmote = null, sendSay = null, seen = {};
+  const say = () => {
+    if (!ECO.nick) return;
+    askText('💬 채팅', '광장에 있는 친구들에게 보낼 말 (40자 이내) · 고운 말을 써요!', '', 40, v => { sendSay = v; }, () => { });
+  };
+  S.enter = () => { if (!ECO.nick) setTimeout(() => askNickname('광장에 들어가려면 닉네임이 필요해요', '다른 사람이 쓰는 닉네임은 쓸 수 없어요 (10자 이내)', null, () => go(MainMenu())), 350); };
+  function sync() {
+    if (busy || !ECO.nick) return; busy = true; lastSync = S.t;
+    const body = { p_name: ECO.nick, p_x: me.x, p_y: me.y, p_dir: me.dir, p_look: nickLook(ECO.nick), p_pet: ECO.pets[0] ? ECO.pets[0].kind : null, p_emote: sendEmote, p_say: sendSay };
+    const se = sendEmote, ss = sendSay;
+    fetch(SB_URL + '/rest/v1/rpc/booth_plaza_sync', { method: 'POST', headers: SB_H, body: JSON.stringify(body) })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        online = true; if (sendEmote === se) sendEmote = null; if (sendSay === ss) sendSay = null;
+        const now = {};
+        d.players.forEach(p => { const o = others[p.name] || { x: p.x, y: p.y, walk: 0 }; Object.assign(o, { tx: p.x, ty: p.y, dir: p.dir, look: p.look, pet: p.pet }); if (p.emote && p.emote_age != null && p.emote_age < 3) { if (o.emAt !== p.emote + Math.round(p.emote_age)) { o.emote = p.emote; o.emoteT = 3 - p.emote_age; } } now[p.name] = o; });
+        others = now;
+        chat = d.chat.map(c => ({ name: c.name, msg: c.msg }));
+        d.chat.forEach(c => { if (!seen[c.id]) { seen[c.id] = 1; if (c.age < 6) { const who = c.name === ECO.nick ? me : others[c.name]; if (who) { who.say = c.msg; who.sayT = 5 - Math.min(4, c.age); } if (c.name !== ECO.nick) beep(880, 0.06, 'square', 0.03); } } });
+      })
+      .catch(() => { online = false; })
+      .finally(() => { busy = false; });
+  }
+  S.click = (x, y) => {
+    if (INPUT_OPEN) return;
+    if (inside(x, y, BACK)) { SFX.click(); go(MainMenu()); return; }
+    for (const b of EB) if (inside(x, y, b)) { me.emote = b.e; me.emoteT = 3; sendEmote = b.e; SFX.click(); return; }
+    if (inside(x, y, CB)) { SFX.click(); say(); }
+  };
+  S.key = k => {
+    if (INPUT_OPEN) return;
+    if (k === 'esc') S.click(BACK.x + 1, BACK.y + 1);
+    if (k === 'enter') say();
+    if (/^[1-6]$/.test(k)) S.click(EB[+k - 1].x + 2, EB[+k - 1].y + 2);
+  };
+  S.update = dt => {
+    if (!INPUT_OPEN) {
+      let dx = (keys.arrowright || keys.d ? 1 : 0) - (keys.arrowleft || keys.a ? 1 : 0), dy = (keys.arrowdown || keys.s ? 1 : 0) - (keys.arrowup || keys.w ? 1 : 0);
+      if (dx || dy) { const l = Math.hypot(dx, dy); me.x += dx / l * 170 * dt; me.y += dy / l * 150 * dt; if (dx) me.dir = dx; me.walk += dt; } else me.walk = 0;
+      me.x = Math.max(24, Math.min(W - 24, me.x)); me.y = Math.max(190, Math.min(462, me.y));
+      const ddx = me.x - FX, ddy = (me.y - FY) * 1.6, dd = Math.hypot(ddx, ddy); if (dd < FR) { me.x = FX + ddx / dd * FR; me.y = FY + ddy / dd * FR / 1.6; }
+    }
+    if (me.emoteT > 0) me.emoteT -= dt; if (me.sayT > 0) me.sayT -= dt;
+    for (const n in others) { const o = others[n]; const mv = Math.hypot(o.tx - o.x, o.ty - o.y); o.x += (o.tx - o.x) * Math.min(1, dt * 8); o.y += (o.ty - o.y) * Math.min(1, dt * 8); o.walk = mv > 2 ? o.walk + dt : 0; if (o.emoteT > 0) o.emoteT -= dt; if (o.sayT > 0) o.sayT -= dt; }
+    if (S.t - lastSync > 0.4 || sendSay || sendEmote) sync();
+  };
+  function bubble(x, y, s, col) {
+    ctx.font = '18px ' + FONT_TX; const w = Math.min(320, ctx.measureText(s).width + 22);
+    const bx = Math.max(6, Math.min(W - w - 6, x - w / 2)), by = y - 40;
+    box(bx, by, w, 32, col || '#fff', '#2a2a3a', 2); ctx.fillStyle = col || '#fff'; ctx.beginPath(); ctx.moveTo(x - 6, by + 30); ctx.lineTo(x, by + 40); ctx.lineTo(x + 6, by + 30); ctx.fill();
+    T(s, bx + w / 2, by + 17, 18, '#1a1a2a', 'center', FONT_TX);
+  }
+  function person(p, name, mine) {
+    const f = p.walk > 0 ? ((p.walk * 8) | 0) % 2 : 0, sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.ellipse(p.x, p.y, 18, 6, 0, 0, 7); ctx.fill();
+    const img = avaImg(mine ? nickLook(ECO.nick) : p.look || 0, f);
+    ctx.save(); ctx.translate(p.x, p.y - 54 - (f ? 2 : 0)); if (p.dir < 0) ctx.scale(-1, 1); ctx.drawImage(img, -18, 0, 36, 54); ctx.restore();
+    if (!mine && p.pet) { const pf = ((performance.now() / 120) | 0) % 2 && p.walk > 0 ? 1 : 0; ctx.save(); ctx.translate(p.x - p.dir * 30, p.y - 24); if (p.dir < 0) ctx.scale(-1, 1); ctx.drawImage(petImg(p.pet, pf), -12, 0, 24, 24); ctx.restore(); }
+    ctx.imageSmoothingEnabled = sm;
+    T(name + (mine ? ' (나)' : ''), p.x, p.y - 66, 17, mine ? '#ffe680' : '#fff', 'center', FONT_UI, '#000');
+    if (p.sayT > 0) bubble(p.x, p.y - 78, p.say);
+    else if (p.emoteT > 0) { const k = Math.min(1, (3 - p.emoteT) * 6); T(p.emote, p.x, p.y - 100 - (1 - k) * 10, 34 * k + 1, '#fff', 'center'); }
+  }
+  S.draw = () => {
+    // 하늘·건물·광장 바닥
+    ctx.fillStyle = '#8fd0ff'; ctx.fillRect(0, 0, W, 170);
+    for (let i = 0; i < 6; i++) { const cx = ((i * 190 + S.t * 8) % (W + 160)) - 80; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.beginPath(); ctx.ellipse(cx, 120 + (i % 2) * 18, 46, 14, 0, 0, 7); ctx.fill(); }
+    [[0, 90, '#c8a882'], [150, 70, '#e0b090'], [700, 80, '#b8c0d8'], [830, 100, '#d0a0a0']].forEach(([x, h, c]) => { ctx.fillStyle = c; ctx.fillRect(x, 170 - h, 130, h); ctx.fillStyle = '#6a8ab8'; for (let wy = 170 - h + 14; wy < 160; wy += 26) for (let wx = x + 14; wx < x + 120; wx += 30) ctx.fillRect(wx, wy, 16, 14); });
+    ctx.fillStyle = '#d8c8a8'; ctx.fillRect(0, 170, W, H - 170);
+    for (let y = 170; y < H; y += 30) for (let x = ((y / 30) % 2) * 30; x < W; x += 60) { ctx.fillStyle = '#cdbb98'; ctx.fillRect(x, y, 30, 30); }
+    ctx.fillStyle = '#4aa04a'; [[40, 200], [920, 200], [40, 440], [920, 440]].forEach(([x, y]) => { ctx.fillStyle = '#7a4a2a'; ctx.fillRect(x - 6, y - 10, 12, 40); ctx.fillStyle = '#3a9a4a'; ctx.beginPath(); ctx.arc(x, y - 26, 30, 0, 7); ctx.fill(); });
+    // 분수대
+    ctx.fillStyle = '#9aa0b0'; ctx.beginPath(); ctx.ellipse(FX, FY, FR, FR / 1.6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#4ab0e8'; ctx.beginPath(); ctx.ellipse(FX, FY, FR - 12, FR / 1.6 - 9, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#c8ccd8'; ctx.fillRect(FX - 8, FY - 46, 16, 46);
+    for (let i = 0; i < 10; i++) { const a = (S.t * 2 + i * 0.63) % 1; ctx.fillStyle = 'rgba(220,245,255,' + (1 - a) + ')'; ctx.fillRect(FX + Math.cos(i * 0.63) * 34 * a, FY - 50 + a * a * 60 - a * 40, 5, 5); }
+    // 사람들 (아래쪽에 있는 사람이 앞에 보이게)
+    const list = Object.keys(others).map(n => [others[n], n, false]); list.push([me, ECO.nick || '?', true]);
+    list.sort((a, b) => a[0].y - b[0].y).forEach(([p, n, m]) => person(p, n, m));
+    topBar('🤝 만남의 광장', '방향키로 걷고, 이모티콘(1~6)과 채팅(Enter)으로 다른 컴퓨터의 친구들과 인사해요');
+    const cnt = Object.keys(others).length + 1;
+    T(online === null ? '● 서버 연결 중…' : online ? '● 지금 광장에 ' + cnt + '명' : '● 서버 연결 안 됨 · 인터넷을 확인해 주세요', W - 16, 74, 17, online === false ? '#ff8a8a' : '#c8ffd0', 'right', FONT_UI, '#000');
+    // 채팅 기록
+    if (chat.length) { const sh = chat.slice(-5); box(12, 470 - sh.length * 24 - 14, 196, sh.length * 24 + 12, 'rgba(10,10,30,.6)', null); }
+    chat.slice(-5).forEach((c, i, a) => { const s = c.name + ': ' + c.msg; T(s.length > 14 ? s.slice(0, 14) + '…' : s, 20, 470 - (a.length - i) * 24 + 2, 15, c.name === ECO.nick ? '#ffe680' : '#fff', 'left', FONT_TX); });
+    EB.forEach(b => { const h = inside(mouse.x, mouse.y, b); box(b.x, b.y, b.w, b.h, h ? '#ffe08a' : 'rgba(20,20,50,.85)', '#fff', 2); T(b.e, b.x + b.w / 2, b.y + b.h / 2 + 1, 26, '#fff', 'center'); });
+    btnDraw(CB, '💬 채팅 (Enter)', '#2a6a4a', 21);
+  };
+  return S;
+}
+
 // ===================== 메인 화면 =====================
 const APTS = (() => { const r = seeded(4242), a = []; let x = -10; while (x < LW) { const w = 46 + Math.floor(r() * 20), h = 110 + Math.floor(r() * 80); a.push({ x, w, h, n: 101 + a.length, lit: Array.from({ length: 200 }, () => r()) , far: false }); x += w + 6 + Math.floor(r() * 10); } return a; })();
 const APTS_FAR = (() => { const r = seeded(777), a = []; let x = 0; while (x < LW) { const w = 30 + Math.floor(r() * 16), h = 90 + Math.floor(r() * 60); a.push({ x, w, h }); x += w + 3; } return a; })();
@@ -2560,8 +2795,8 @@ function MainMenu() {
   const B = [{ x: W / 2 - 260, y: 210, w: 520, h: 96, n: '경찰과 AI', s: '허위 사실을 퍼뜨린 AI를 잡아라!', warn: '⚠ 공포 미로가 있으니 주의하세요.', go: () => PoliceIntro() },
   { x: W / 2 - 260, y: 330, w: 520, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
   // 아래쪽 작은 버튼: 명예의 전당 · 펫 상점 · 초기화
-  const B2 = [{ x: 14, y: 14, w: 180, h: 44, n: '🏆 명예의 전당', go: () => HallOfFame(), col: '#6a4a10' }, { x: 14, y: 66, w: 180, h: 44, n: '🐾 펫 상점', go: () => PetShop(), col: '#1f5a3a' }, { x: 14, y: 118, w: 180, h: 44, n: '⟲ 초기화', go: () => ResetConfirm(), col: '#6a1a1a' }];
-  S.enter = () => { G.pendant = false; if (!ECO.nick) setTimeout(() => { if (!ECO.nick && !INPUT_OPEN && scene === S) askText('어서 오세요! 닉네임을 정해 주세요', '명예의 전당 기록에 이 이름이 남아요 (10자 이내)', '', 10, v => { ECO.nick = v; ecoSave(); SFX.ok(); }); }, 450); };
+  const B2 = [{ x: 14, y: 14, w: 180, h: 44, n: '🏆 명예의 전당', go: () => HallOfFame(), col: '#6a4a10' }, { x: 14, y: 66, w: 180, h: 44, n: '🐾 펫 상점', go: () => PetShop(), col: '#1f5a3a' }, { x: 14, y: 118, w: 180, h: 44, n: '🤝 만남의 광장', go: () => Plaza(), col: '#2a4a8a' }, { x: 14, y: 170, w: 180, h: 44, n: '⟲ 초기화', go: () => ResetConfirm(), col: '#6a1a1a' }];
+  S.enter = () => { G.pendant = false; if (!ECO.nick) setTimeout(() => { if (!ECO.nick && !INPUT_OPEN && scene === S) askNickname('어서 오세요! 닉네임을 정해 주세요', '다른 사람이 쓰는 닉네임은 쓸 수 없어요 (10자 이내)'); }, 450); };
   S.click = (x, y) => { B.forEach(b => { if (inside(x, y, b)) { SFX.ok(); go(b.go()); } }); B2.forEach(b => { if (inside(x, y, b)) { SFX.click(); go(b.go()); } }); };
   S.draw = () => {
     L.clearRect(0, 0, LW, LH); bgMenu(L, S.t); blitLo();
@@ -2579,8 +2814,6 @@ function MainMenu() {
     { const px = (60 + ((S.t * 40) % 420)) * 2, py = 228 * 2; if ((S.t % 3) < 2 && px > 140) {
       const bx = px - 128, by = py - 4; box(bx, by, 112, 34, '#fff', '#222', 2); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(bx + 108, by + 10); ctx.lineTo(bx + 124, by + 18); ctx.lineTo(bx + 108, by + 24); ctx.fill(); ctx.strokeStyle = '#222'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx + 111, by + 10); ctx.lineTo(bx + 124, by + 18); ctx.lineTo(bx + 111, by + 24); ctx.stroke();
       T('거기 서라!', bx + 56, by + 18, 19, '#c81818', 'center'); } }
-    // 입양한 펫들이 길 위를 뛰어다님 (이름표와 함께)
-    ECO.pets.forEach((p, i) => { const sp = 34 + (i % 3) * 9, x = ((S.t * sp + i * 137) % (W + 120)) - 60, y = 498 + (i % 2) * 10, f = (S.t * 8 + i | 0) % 2; const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false; ctx.drawImage(petImg(p.kind, f), x, y - 34 - (f ? 2 : 0), 34, 34); ctx.imageSmoothingEnabled = sm; T(p.name, x + 17, y - 40, 13, '#fff', 'center'); });
     B2.forEach(b => btnDraw(b, b.n, b.col, 19));
     drawWallet(W - 208, 10); if (ECO.nick) T('👤 ' + ECO.nick, W - 16, 74, 18, '#fff', 'right');
     T('마우스를 버튼에 가져다 대고 클릭하세요', W / 2, H - 22, 18, '#ccd', 'center');

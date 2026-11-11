@@ -1,7 +1,7 @@
 // ===================== 무한의 계단 (공용) =====================
 // cfg: { title, hero:[img,img], bg(c,t,height), stepCol:[top,front], turnClimbs, controls:[..], onClear:()=>scene }
 function Stairs(cfg) {
-  const S = {};
+  const S = { stairs: true };
   const DIFFS = [{ n: '1단계 · 쉬움', goal: 30, drain: 0.13 }, { n: '2단계 · 보통', goal: 50, drain: 0.18 }, { n: '3단계 · 어려움', goal: 100, drain: 0.23 }, { n: '4단계 · 매우 어려움', goal: 500, drain: 0.27 }, { n: '5단계 · 지옥', goal: 1000, drain: 0.3, hell: 1 }];
   const BTN = DIFFS.map((d, i) => ({ x: W / 2 - 200, y: 182 + i * 66, w: 400, h: 56 }));
   const SW = 22, SH = 12;
@@ -53,6 +53,7 @@ function Stairs(cfg) {
         if (items[i]) { const bob = Math.sin(S.t * 5 + i) * 1.5; L.drawImage(items[i] === 'g' ? GEM_IMG : COIN_IMG, x + SW / 2 - 4, y - 11 + bob, 8, 8); }
         if (i === diff.goal) { R(L, x + SW / 2, y - 26, 2, 26, '#eee'); R(L, x + SW / 2 + 2, y - 26, 12, 8, '#ff4a4a'); }
       }
+      if (mode !== 'retry') petsFollow(L, steps, idx, ox, oy, SW, SH, 1 / 60, S.t);
       const ho = cfg.heroOff || [8, 24]; let px = ox + steps[idx] * SW - ho[0], py = oy - idx * SH - ho[1] - Math.sin(hop * Math.PI) * 5;
       let fr = hop > 0.3 ? 1 : 0;
       if (mode === 'fall') { py += ft * ft * 260; px += face * ft * 30; fr = (S.t * 10 | 0) % 2; }
