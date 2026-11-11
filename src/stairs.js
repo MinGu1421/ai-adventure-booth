@@ -7,7 +7,7 @@ function Stairs(cfg) {
   const SW = 22, SH = 12;
   let paused = false, cd = 0; const PB2 = { x: 132, y: 10, w: 126, h: 34 };
   let items = [], mode = 'select', diff = null, steps, idx, face, gauge, started, hearts = 3, ft = 0, camX = 0, camY = 0, hop = 0, shake = 0;
-  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } items = steps.map((_, i) => i < 3 || i >= diff.goal ? null : Math.random() < 0.007 ? 'g' : Math.random() < 0.1 ? 'c' : null); idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
+  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } items = steps.map((_, i) => i < 3 || i >= diff.goal ? null : Math.random() < 0.02 ? 'g' : Math.random() < 0.2 ? 'c' : null); idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
   function fall() { mode = 'fall'; ft = 0; SFX.fall(); }
   function climb() {
     const d = steps[idx + 1] - steps[idx];

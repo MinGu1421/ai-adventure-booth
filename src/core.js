@@ -106,10 +106,10 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const mouse = { x: 0, y: 0, down: false };
 function mpos(e) { const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) / r.width * W; mouse.y = (e.clientY - r.top) / r.height * H; }
 cv.addEventListener('mousemove', e => { mpos(e); scene && scene.move && scene.move(mouse.x, mouse.y); });
-cv.addEventListener('mousedown', e => { audioInit(); mpos(e); mouse.down = true; scene && scene.mdown && scene.mdown(mouse.x, mouse.y); });
-addEventListener('mouseup', e => { mouse.down = false; scene && scene.mup && scene.mup(); });
+cv.addEventListener('mousedown', e => { audioInit(); mpos(e); mouse.down = true; if (typeof petsGrab === 'function' && petsGrab(mouse.x, mouse.y)) return; scene && scene.mdown && scene.mdown(mouse.x, mouse.y); });
+addEventListener('mouseup', e => { mouse.down = false; if (typeof DRAG !== 'undefined' && DRAG.w) { petsDrop(); return; } scene && scene.mup && scene.mup(); });
 cv.addEventListener('click', e => {
-  mpos(e); if (trans.a > 0.5) return;
+  mpos(e); if (typeof PET_EAT_CLICK !== 'undefined' && PET_EAT_CLICK) { PET_EAT_CLICK = false; return; } if (trans.a > 0.5) return;
   if (scene && !scene.noHome && inside(mouse.x, mouse.y, HOME)) { SFX.click(); go(MainMenu()); return; }
   scene && scene.click && scene.click(mouse.x, mouse.y);
 });

@@ -160,9 +160,10 @@ function PetShop() {
     if (inside(x, y, BACK)) { SFX.click(); go(MainMenu()); return; }
     for (const c of cards) if (inside(x, y, c)) {
       const [name, price, , , kind] = PETS[c.i];
-      if (ECO.coins < price) { msg = '코인이 부족해요! (' + name + ' ' + price + '원, 가진 코인 ' + ECO.coins + '원)'; msgT = 3; SFX.bad(); return; }
+      if (ECO.coins + ECO.gems * GEM_VALUE < price) { msg = '돈이 부족해요! (' + name + ' ' + price + '원, 가진 돈 ' + (ECO.coins + ECO.gems * GEM_VALUE) + '원 = 코인 ' + ECO.coins + ' + 보석 ' + ECO.gems + '개)'; msgT = 3; SFX.bad(); return; }
+      const needG = Math.max(0, Math.ceil((price - ECO.coins) / GEM_VALUE)), payC = price - needG * GEM_VALUE; // 코인 먼저, 모자라면 보석 (거스름돈은 코인)
       SFX.click();
-      askText(name + ' 입양하기 (' + price + '원)', '새 가족이 될 ' + name + '의 이름을 지어 주세요', '', 8, v => { ECO.coins -= price; ECO.pets.push({ kind, name: v }); ecoSave(); msg = '"' + v + '"(' + name + ')를 입양했어요!'; msgT = 3; SFX.clear(); }, () => { });
+      askText(name + ' 입양하기 (' + price + '원)', (needG ? '코인 ' + Math.max(0, payC) + '개 + 보석 ' + needG + '개로 사요' + (payC < 0 ? ' (거스름돈 코인 ' + (-payC) + '개)' : '') + ' · ' : '') + name + '의 이름을 지어 주세요', '', 8, v => { ECO.coins -= payC; ECO.gems -= needG; ECO.pets.push({ kind, name: v }); ecoSave(); msg = '"' + v + '"(' + name + ')를 입양했어요!'; msgT = 3; SFX.clear(); }, () => { });
       return;
     }
   };
@@ -170,9 +171,9 @@ function PetShop() {
   S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#21402e'; ctx.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 40) { ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, 0, 20, H); }
-    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 화면을 자유롭게 돌아다녀요');
+    topBar('🐾 펫 상점', '코인·보석(1개=10원)으로 펫을 입양해요 · 펫은 마우스로 끌어서 구석 우리에 가둘 수 있어요');
     cards.forEach(c => {
-      const [name, price, , , kind] = PETS[c.i], can = ECO.coins >= price, h = inside(mouse.x, mouse.y, c);
+      const [name, price, , , kind] = PETS[c.i], can = ECO.coins + ECO.gems * GEM_VALUE >= price, h = inside(mouse.x, mouse.y, c);
       box(c.x, c.y - (h ? 4 : 0), c.w, c.h, h ? '#fff3c8' : '#fff8e6', can ? '#3a2a1a' : '#9a9a9a', 3);
       const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false; ctx.drawImage(petImg(kind, (S.t * 4 | 0) % 2 && h ? 1 : 0), c.x + c.w / 2 - 32, c.y + 12 - (h ? 4 : 0), 64, 64); ctx.imageSmoothingEnabled = sm;
       T(name, c.x + c.w / 2, c.y + 96 - (h ? 4 : 0), 24, '#2a1d12', 'center');

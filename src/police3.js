@@ -103,7 +103,7 @@ function PoliceStage3() {
     // 랜턴: 출발점 → 탈출구로 가는 길을 따라 놓아 길 안내 (꺾이는 곳은 바깥쪽 구석, 곧은 길은 벽 쪽)
     // 열쇠: 출발점에서 충분히 먼 길 위 아무 칸에 무작위로 놓기 (매 판 다름)
     { const cand = []; for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) if (map[y][x] === 0 && Math.hypot(x - 1, y - 1) > 6 && Math.hypot(x - (TW - 2), y - (TH - 2)) > 3) cand.push([x, y]); kz = []; nKey = 0; let guard = 0; while (kz.length < 3 && guard++ < 500) { const [kx, ky] = cand[Math.floor(Math.random() * cand.length)]; if (kz.every(k => Math.hypot(k.x - kx, k.y - ky) > 5)) kz.push({ x: kx + 0.5, y: ky + 0.5, got: false }); }
-      coins = []; for (let i = 0; i < 6; i++) { const [cx, cy] = cand[Math.floor(Math.random() * cand.length)]; if (!kz.some(k => Math.floor(k.x) === cx && Math.floor(k.y) === cy)) coins.push({ x: cx + 0.5, y: cy + 0.5 }); } }
+      coins = []; for (let i = 0; i < 10; i++) { const [cx, cy] = cand[Math.floor(Math.random() * cand.length)]; if (!kz.some(k => Math.floor(k.x) === cx && Math.floor(k.y) === cy)) coins.push({ x: cx + 0.5, y: cy + 0.5 }); } }
     lan = [];
     { const sx = 1, sy = 1, ex = TW - 2, ey = TH - 2, prev = new Map([[sx + ',' + sy, null]]), q = [[sx, sy]];
       while (q.length) { const [x, y] = q.shift(); if (x === ex && y === ey) break; for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (!prev.has(kk) && map[ny] && map[ny][nx] === 0) { prev.set(kk, [x, y]); q.push([nx, ny]); } } }

@@ -79,7 +79,7 @@ function DogStage1() {
   let mode = 'howto', x = 0, v = 150, y = 0, vy = 0, air = false, dbl = false, slide = false, hearts = 3, inv = 0, shake = 0, endT = 0, prompt = 0, gotP = false, missed = false;
   const obs = []; { let ox = 650, prev = ''; while (ox < LEN - 300) { const k = ox / LEN; const opts = ['low', 'tall', 'hang'].filter(t => t !== prev); const type = opts[Math.floor(Math.random() * opts.length)]; if (Math.abs(ox - PEND) > 160) { obs.push({ x: ox, type }); prev = type; } ox += rnd(240, 340) * (1 - k * 0.3); } }
   // 코인: 길 위 또는 점프해야 닿는 높이에 가끔
-  const cns = []; for (let cx = 520; cx < LEN - 300; cx += 260 + Math.random() * 260) cns.push({ x: cx, y: Math.random() < 0.5 ? GROUND - 14 : GROUND - 64 });
+  const cns = []; for (let cx = 520; cx < LEN - 300; cx += 150 + Math.random() * 150) cns.push({ x: cx, y: Math.random() < 0.5 ? GROUND - 14 : GROUND - 64 });
   function box2(o) { if (o.type === 'low') return { x: o.x, y: GROUND - 16, w: 20, h: 16 }; if (o.type === 'tall') return { x: o.x, y: GROUND - 54, w: 18, h: 54 }; return { x: o.x, y: 0, w: 28, h: GROUND - 14 }; }
   S.key = k => {
     if (mode === 'howto') { if (k === 'space' || k === 'enter') { SFX.click(); mode = 'play'; } return; }

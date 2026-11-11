@@ -23,7 +23,7 @@ function DogStage3() {
   const [gcx, gcy] = goalCands[Math.floor(rand() * goalCands.length)];
   const gx = OX + (gcx * 2 + 1.5) * TS, gy = OY + (gcy * 2 + 1.5) * TS;
   let px = OX + 1.5 * TS, py = OY + 1.5 * TS, mode = 'howto', endT = 0, face = 1;
-  const cns = []; { const open = []; for (let y = 1; y < mz.TH - 1; y++) for (let x = 1; x < mz.TW - 1; x++) if (m[y][x] === 0 && x + y > 4) open.push([x, y]); for (let i = 0; i < 5 && open.length; i++) { const [cx, cy] = open.splice(Math.floor(Math.random() * open.length), 1)[0]; cns.push({ x: OX + (cx + 0.5) * TS, y: OY + (cy + 0.5) * TS }); } }
+  const cns = []; { const open = []; for (let y = 1; y < mz.TH - 1; y++) for (let x = 1; x < mz.TW - 1; x++) if (m[y][x] === 0 && x + y > 4) open.push([x, y]); for (let i = 0; i < 8 && open.length; i++) { const [cx, cy] = open.splice(Math.floor(Math.random() * open.length), 1)[0]; cns.push({ x: OX + (cx + 0.5) * TS, y: OY + (cy + 0.5) * TS }); } }
   const solid = (x, y) => { const tx = Math.floor((x - OX) / TS), ty = Math.floor((y - OY) / TS); return !m[ty] || m[ty][tx] !== 0; };
   S.key = k => { if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); mode = 'play'; } };
   S.click = () => { if (mode === 'howto') S.key('space'); };
@@ -133,7 +133,7 @@ function DogStage4() {
   function put(name, target) { for (let k = 0; k < 200; k++) { const x = 80 + rnd2() * (MW - 160), y = 80 + rnd2() * (MH - 160); if (!tooClose(x, y) && Math.abs(y - MH * 0.55) > 50) { places.push({ x, y, name, target, shelter: /대피소/.test(name) }); return; } } }
   put('서울 야르 대피소', true); names.forEach(n => put(n));
   const target = places[0];
-  const mcoins = []; for (let i = 0; i < 4; i++) mcoins.push({ x: 60 + rnd2() * (MW - 120), y: 60 + rnd2() * (MH - 120) }); // 지도 곳곳에 숨은 코인 (클릭해서 줍기)
+  const mcoins = []; for (let i = 0; i < 7; i++) mcoins.push({ x: 60 + rnd2() * (MW - 120), y: 60 + rnd2() * (MH - 120) }); // 지도 곳곳에 숨은 코인 (클릭해서 줍기)
   const hint = { x: target.x + rnd(-80, 80), y: target.y + rnd(-60, 60) };
   const roadsV = [], roadsH = []; for (let x = 120; x < MW; x += 150 + rnd2() * 80) roadsV.push(x); for (let y = 100; y < MH; y += 130 + rnd2() * 60) roadsH.push(y);
   const parks = []; for (let i = 0; i < 7; i++) parks.push([rnd2() * MW, rnd2() * MH, 80 + rnd2() * 120, 60 + rnd2() * 80]);
@@ -209,7 +209,7 @@ function DogStage5() {
   const goal = [TW - 2, TH - 2], onPath = new Set(); { let c = goal; while (c) { onPath.add(c[0] + ',' + c[1]); c = prev.get(c[0] + ',' + c[1]); } }
   const block = new Set();
   for (const k of onPath) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (m[ny][nx] === 0 && !onPath.has(kk)) block.add(kk); } }
-  const cns = []; { const ks = [...onPath].filter(k => k !== '1,1' && k !== goal.join(',')); for (let i = 0; i < 6 && ks.length; i++) { const [x, y] = ks.splice(Math.floor(Math.random() * ks.length), 1)[0].split(',').map(Number); cns.push({ x: (x + 0.5) * TS, y: (y + 0.5) * TS }); } }
+  const cns = []; { const ks = [...onPath].filter(k => k !== '1,1' && k !== goal.join(',')); for (let i = 0; i < 10 && ks.length; i++) { const [x, y] = ks.splice(Math.floor(Math.random() * ks.length), 1)[0].split(',').map(Number); cns.push({ x: (x + 0.5) * TS, y: (y + 0.5) * TS }); } }
   let px = 1.5 * TS, py = 1.5 * TS, hearts = 3, inv = 0, shake = 0, mode = 'howto', endT = 0, fall = [], ft = 1.5, face = 0, camX = 0, camY = 0;
   const solid = (x, y) => { const tx = Math.floor(x / TS), ty = Math.floor(y / TS); if (!m[ty] || m[ty][tx] !== 0) return true; return block.has(tx + ',' + ty); };
   const DEB = [0, 1, 2].map(k => mk(14, 14, p => { if (k === 0) { p(1, 3, 12, 8, '#8a8a8a'); p(3, 1, 8, 3, '#9a9a9a'); p(2, 10, 10, 3, '#6a6a6a'); } else if (k === 1) { p(2, 2, 10, 10, '#a85a3a'); p(4, 4, 6, 2, '#c87a5a'); p(2, 7, 10, 1, '#7a3a2a'); } else { p(1, 5, 12, 4, '#6a7a8a'); p(5, 1, 4, 12, '#6a7a8a'); p(2, 6, 10, 2, '#8a9aaa'); } }));
@@ -327,7 +327,7 @@ function DogStage6() {
       if (sel === 2) { go(HappyEnding()); } else go(SadEnding());
       mode = 'done'; return;
     }
-    if (sel === q.a) { SFX.ok(); addCoin(1, W / 2, 300); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
+    if (sel === q.a) { SFX.ok(); addCoin(2, W / 2, 300); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
     else { SFX.bad(); mode = 'wrong'; msgT = 0; }
   }
   S.key = k => {

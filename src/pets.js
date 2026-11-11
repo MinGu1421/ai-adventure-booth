@@ -4,11 +4,28 @@
 const PS = 34;            // 화면에서 펫 크기
 const PET_ACT = { chick: '콕콕', ham: '데굴데굴', bun: '깡총', cat: '쿨쿨', dog: '멍!', peng: '슝~', fox: '폴짝!', dragon: '훨훨' };
 let WALK = [];
+const PEN = { x: W - 186, y: H - 86, w: 176, h: 78 };   // 오른쪽 아래 '펫 우리'
+const DRAG = { w: null, ox: 0, oy: 0, lx: 0, ly: 0, vx: 0, vy: 0, moved: false };
+let PET_EAT_CLICK = false;
+function penPos(w) { w.surf = 'pen'; w.st = 'sit'; w.tm = 1 + Math.random() * 2; w.y = PEN.y + PEN.h - PS - 6; w.x = Math.max(PEN.x + 6, Math.min(PEN.x + PEN.w - PS - 6, w.x)); w.spin = 0; }
+function petAt(x, y) { for (let i = WALK.length - 1; i >= 0; i--) { const w = WALK[i]; if (x > w.x - 4 && x < w.x + PS + 4 && y > w.y - 4 && y < w.y + PS + 4) return w; } return null; }
+function petsGrab(x, y) {
+  if (!scene || scene.stairs || INPUT_OPEN) return false;
+  const w = petAt(x, y); if (!w) return false;
+  DRAG.w = w; DRAG.ox = x - w.x; DRAG.oy = y - w.y; DRAG.lx = x; DRAG.ly = y; DRAG.vx = DRAG.vy = 0; DRAG.moved = false;
+  w.surf = 'drag'; w.st = 'drag'; w.spin = 0; w.say = '으앙~'; w.sayT = 0.8; PET_EAT_CLICK = true; return true;
+}
+function petsDrop() {
+  const w = DRAG.w; if (!w) return; DRAG.w = null;
+  const i = WALK.indexOf(w), cx = w.x + PS / 2, cy = w.y + PS / 2;
+  if (cx > PEN.x && cx < PEN.x + PEN.w && cy > PEN.y - 20 && cy < PEN.y + PEN.h) { penPos(w); w.say = '쏙!'; w.sayT = 1; if (ECO.pets[i]) { ECO.pets[i].pen = true; ecoSave(); } SFX.click(); }
+  else { w.surf = 'air'; w.st = 'fall'; w.vx = Math.max(-600, Math.min(600, DRAG.vx)); w.vy = Math.max(-600, Math.min(600, DRAG.vy)); if (ECO.pets[i] && ECO.pets[i].pen) { ECO.pets[i].pen = false; ecoSave(); } }
+}
 function petsSync() {
   if (WALK.length !== ECO.pets.length || WALK.some((w, i) => w.kind !== ECO.pets[i].kind)) {
     WALK = ECO.pets.map((p, i) => (WALK[i] && WALK[i].kind === p.kind) ? WALK[i] : { kind: p.kind, x: 120 + Math.random() * (W - 240), y: -PS - i * 30, vx: 0, vy: 0, surf: 'air', st: 'fall', tm: 0, dir: Math.random() < 0.5 ? -1 : 1, spin: 0, say: '', sayT: 0 });
   }
-  WALK.forEach((w, i) => w.name = ECO.pets[i].name);
+  WALK.forEach((w, i) => { w.name = ECO.pets[i].name; if (ECO.pets[i].pen && w.surf !== 'pen' && w.surf !== 'drag') penPos(w); });
 }
 function petPick(w) { // 바닥에서 다음 행동 고르기
   const r = Math.random();
@@ -20,9 +37,18 @@ function petPick(w) { // 바닥에서 다음 행동 고르기
 }
 function petsUpdate(dt) {
   petsSync();
-  const G = 1100, top = 0, bot = H - PS, lft = 0, rgt = W - PS;
+  const G = 1100, top = 0, bot = H - PS, lft = 0, rgt = W - PS, penOn = WALK.some(w => w.surf === 'pen');
   WALK.forEach(w => {
     w.tm -= dt; if (w.sayT > 0) w.sayT -= dt;
+    if (w.surf === 'drag') { // 마우스로 들고 있는 중
+      const nx = mouse.x - DRAG.ox, ny = mouse.y - DRAG.oy; DRAG.vx = (mouse.x - DRAG.lx) / Math.max(dt, 0.001); DRAG.vy = (mouse.y - DRAG.ly) / Math.max(dt, 0.001); DRAG.lx = mouse.x; DRAG.ly = mouse.y;
+      w.spin = Math.max(-0.6, Math.min(0.6, (nx - w.x) * 0.05)) + Math.sin(performance.now() / 150) * 0.15; w.x = nx; w.y = ny; return;
+    }
+    if (w.surf === 'pen') { // 우리 안에서만 꼼지락
+      if (w.st === 'walk') { w.x += w.dir * 30 * dt; if (w.x < PEN.x + 6 || w.x > PEN.x + PEN.w - PS - 6) { w.dir = -w.dir; w.x = Math.max(PEN.x + 6, Math.min(PEN.x + PEN.w - PS - 6, w.x)); } }
+      if (w.tm <= 0) { w.st = Math.random() < 0.5 ? 'walk' : 'sit'; w.tm = 1 + Math.random() * 3; if (Math.random() < 0.4) w.dir = -w.dir; }
+      return;
+    }
     if (w.surf === 'air') {
       if (w.st === 'fly') { // 아기 용: 하늘을 날아다님
         w.x += w.dir * 90 * dt; w.y += Math.sin(performance.now() / 300) * 40 * dt - (w.y - 140) * 0.6 * dt;
@@ -33,7 +59,8 @@ function petsUpdate(dt) {
       w.vy += G * dt; w.x += w.vx * dt; w.y += w.vy * dt;
       if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x)); if (Math.random() < 0.6 && w.y > 40 && w.y < bot - 20) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 2 + Math.random() * 4; w.vx = w.vy = 0; } else w.vx = -w.vx * 0.5; }
       if (w.y < top) { w.y = top; w.vy = 0; }
-      if (w.y >= bot) { w.y = bot; w.vy = 0; w.vx = 0; w.surf = 'floor'; w.st = 'sit'; w.tm = 0.5 + Math.random(); w.spin = 0; }
+      if (penOn && w.y >= PEN.y - PS && w.x + PS / 2 > PEN.x && w.y < bot) { w.vx = -Math.abs(w.vx) - 60; }
+      if (w.y >= bot) { w.y = bot; if (penOn && w.x + PS > PEN.x) w.x = PEN.x - PS - 4; w.vy = 0; w.vx = 0; w.surf = 'floor'; w.st = 'sit'; w.tm = 0.5 + Math.random(); w.spin = 0; }
       if (w.kind === 'ham' && w.st === 'fall') w.spin += dt * 10;
       return;
     }
@@ -41,6 +68,7 @@ function petsUpdate(dt) {
       if (w.st === 'walk' || (w.st === 'act' && (w.kind === 'peng' || w.kind === 'ham'))) {
         const sp = w.st === 'act' ? (w.kind === 'peng' ? 260 : 180) : 46 + (w.kind === 'dog' ? 20 : 0);
         w.x += w.dir * sp * dt; if (w.kind === 'ham' && w.st === 'act') w.spin += w.dir * dt * 12;
+        if (penOn && w.dir > 0 && w.x > PEN.x - PS - 4 && w.x < PEN.x) { w.x = PEN.x - PS - 4; w.dir = -1; } // 우리 바깥 펫은 우리 앞에서 돌아섬
         if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x));
           if (w.wantWall || Math.random() < 0.35) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 3 + Math.random() * 6; w.wantWall = false; } else w.dir = -w.dir; }
       }
@@ -62,7 +90,17 @@ function petsUpdate(dt) {
     }
   });
 }
+function penDraw() {
+  const any = WALK.some(w => w.surf === 'pen'), dragging = !!DRAG.w;
+  if (!any && !dragging) return;
+  const hot = dragging && mouse.x > PEN.x && mouse.x < PEN.x + PEN.w && mouse.y > PEN.y - 20 && mouse.y < PEN.y + PEN.h;
+  ctx.fillStyle = hot ? 'rgba(255,230,120,.55)' : dragging ? 'rgba(120,200,120,.45)' : 'rgba(90,150,80,.55)'; ctx.fillRect(PEN.x, PEN.y, PEN.w, PEN.h);
+  ctx.fillStyle = '#8a5a2a'; for (let x = PEN.x; x <= PEN.x + PEN.w; x += 22) ctx.fillRect(x, PEN.y - 6, 6, PEN.h + 6);
+  ctx.fillRect(PEN.x, PEN.y + 6, PEN.w + 6, 5); ctx.fillRect(PEN.x, PEN.y + PEN.h - 14, PEN.w + 6, 5);
+  T(dragging ? '여기에 놓으면 펫 우리에 쏙!' : '펫 우리 (끌어서 꺼내기)', PEN.x + PEN.w / 2, PEN.y - 14, 15, hot ? '#ffe680' : '#fff', 'center', FONT_UI, '#000');
+}
 function petsDraw() {
+  penDraw();
   const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
   const now = performance.now() / 1000;
   WALK.forEach((w, i) => {
@@ -76,6 +114,7 @@ function petsDraw() {
     if (w.st === 'act' && w.kind === 'chick') bob = Math.abs(Math.sin(now * 14)) * 4;
     if (w.st === 'act' && w.kind === 'dog') rot += Math.sin(now * 30) * 0.08;
     if (w.st === 'sit') sy = 0.92;
+    if (w.surf === 'drag') flip = false;
     if (w.st === 'act' && w.kind === 'cat') sy = 0.8;
     const cx = w.x + PS / 2, cy = w.y + PS / 2;
     ctx.save(); ctx.translate(cx, cy + bob); ctx.rotate(rot + w.spin); ctx.scale(flip ? -1 : 1, sy);
@@ -87,7 +126,7 @@ function petsDraw() {
     if (w.st === 'act' && w.kind === 'cat' && w.surf === 'floor') T('z'.repeat(1 + ((now * 2) | 0) % 3), w.x + PS, w.y - 4, 16, '#cfe', 'left');
     if (w.sayT > 0) T(w.say, tx, ty, 16, '#fff', 'center', FONT_UI, '#000');
     else if (hov) T('♥ ' + w.name, tx, ty, 15, '#ffd0e0', 'center', FONT_UI, '#000');
-    else if (w.surf === 'floor') T(w.name, tx, ty, 13, '#fff', 'center', FONT_UI, '#000');
+    else if (w.surf === 'floor' || w.surf === 'pen') T(w.name, tx, ty, 13, '#fff', 'center', FONT_UI, '#000');
   });
   ctx.imageSmoothingEnabled = sm;
 }

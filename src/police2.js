@@ -47,7 +47,7 @@ function PoliceStage2() {
   function spawn() {
     const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
     ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.7, 1.15 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
-    if (Math.random() < 0.22) { const free = [0, 1, 2].filter(l => !ls.includes(l)); if (free.length) objs.push({ l: free[Math.floor(Math.random() * free.length)], z: 0, dur: 1.3, k: 0, rot: 0, coin: true }); } // 가끔 코인 (그 칸에 서 있으면 획득)
+    if (Math.random() < 0.4) { const free = [0, 1, 2].filter(l => !ls.includes(l)); if (free.length) objs.push({ l: free[Math.floor(Math.random() * free.length)], z: 0, dur: 1.3, k: 0, rot: 0, coin: true }); } // 가끔 코인 (그 칸에 서 있으면 획득)
     windup = 0.25;
   }
   S.key = k => {

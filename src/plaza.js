@@ -21,7 +21,7 @@ function Plaza() {
   const me = { x: 300 + Math.random() * 360, y: 400, dir: 1, walk: 0, emote: '', emoteT: 0, say: '', sayT: 0 };
   const EMO = ['👋', '❤️', '😂', '👍', '🎉', '😮'];
   const EB = EMO.map((e, i) => ({ x: 214 + i * 64, y: 482, w: 56, h: 46, e }));
-  const CB = { x: 614, y: 482, w: 196, h: 46 };
+  const CB = { x: 604, y: 482, w: 160, h: 46 };
   const FX = 480, FY = 300, FR = 78;              // 분수대 (못 지나감)
   let others = {}, chat = [], online = null, busy = false, lastSync = -9, sendEmote = null, sendSay = null, seen = {};
   const say = () => {
@@ -109,7 +109,7 @@ function Plaza() {
     if (chat.length) { const sh = chat.slice(-5); box(12, 470 - sh.length * 24 - 14, 196, sh.length * 24 + 12, 'rgba(10,10,30,.6)', null); }
     chat.slice(-5).forEach((c, i, a) => { const s = c.name + ': ' + c.msg; T(s.length > 14 ? s.slice(0, 14) + '…' : s, 20, 470 - (a.length - i) * 24 + 2, 15, c.name === ECO.nick ? '#ffe680' : '#fff', 'left', FONT_TX); });
     EB.forEach(b => { const h = inside(mouse.x, mouse.y, b); box(b.x, b.y, b.w, b.h, h ? '#ffe08a' : 'rgba(20,20,50,.85)', '#fff', 2); T(b.e, b.x + b.w / 2, b.y + b.h / 2 + 1, 26, '#fff', 'center'); });
-    btnDraw(CB, '💬 채팅 (Enter)', '#2a6a4a', 21);
+    btnDraw(CB, '💬 채팅 (Enter)', '#2a6a4a', 19);
   };
   return S;
 }

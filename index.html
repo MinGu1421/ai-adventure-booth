@@ -114,10 +114,10 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const mouse = { x: 0, y: 0, down: false };
 function mpos(e) { const r = cv.getBoundingClientRect(); mouse.x = (e.clientX - r.left) / r.width * W; mouse.y = (e.clientY - r.top) / r.height * H; }
 cv.addEventListener('mousemove', e => { mpos(e); scene && scene.move && scene.move(mouse.x, mouse.y); });
-cv.addEventListener('mousedown', e => { audioInit(); mpos(e); mouse.down = true; scene && scene.mdown && scene.mdown(mouse.x, mouse.y); });
-addEventListener('mouseup', e => { mouse.down = false; scene && scene.mup && scene.mup(); });
+cv.addEventListener('mousedown', e => { audioInit(); mpos(e); mouse.down = true; if (typeof petsGrab === 'function' && petsGrab(mouse.x, mouse.y)) return; scene && scene.mdown && scene.mdown(mouse.x, mouse.y); });
+addEventListener('mouseup', e => { mouse.down = false; if (typeof DRAG !== 'undefined' && DRAG.w) { petsDrop(); return; } scene && scene.mup && scene.mup(); });
 cv.addEventListener('click', e => {
-  mpos(e); if (trans.a > 0.5) return;
+  mpos(e); if (typeof PET_EAT_CLICK !== 'undefined' && PET_EAT_CLICK) { PET_EAT_CLICK = false; return; } if (trans.a > 0.5) return;
   if (scene && !scene.noHome && inside(mouse.x, mouse.y, HOME)) { SFX.click(); go(MainMenu()); return; }
   scene && scene.click && scene.click(mouse.x, mouse.y);
 });
@@ -417,9 +417,10 @@ function PetShop() {
     if (inside(x, y, BACK)) { SFX.click(); go(MainMenu()); return; }
     for (const c of cards) if (inside(x, y, c)) {
       const [name, price, , , kind] = PETS[c.i];
-      if (ECO.coins < price) { msg = '코인이 부족해요! (' + name + ' ' + price + '원, 가진 코인 ' + ECO.coins + '원)'; msgT = 3; SFX.bad(); return; }
+      if (ECO.coins + ECO.gems * GEM_VALUE < price) { msg = '돈이 부족해요! (' + name + ' ' + price + '원, 가진 돈 ' + (ECO.coins + ECO.gems * GEM_VALUE) + '원 = 코인 ' + ECO.coins + ' + 보석 ' + ECO.gems + '개)'; msgT = 3; SFX.bad(); return; }
+      const needG = Math.max(0, Math.ceil((price - ECO.coins) / GEM_VALUE)), payC = price - needG * GEM_VALUE; // 코인 먼저, 모자라면 보석 (거스름돈은 코인)
       SFX.click();
-      askText(name + ' 입양하기 (' + price + '원)', '새 가족이 될 ' + name + '의 이름을 지어 주세요', '', 8, v => { ECO.coins -= price; ECO.pets.push({ kind, name: v }); ecoSave(); msg = '"' + v + '"(' + name + ')를 입양했어요!'; msgT = 3; SFX.clear(); }, () => { });
+      askText(name + ' 입양하기 (' + price + '원)', (needG ? '코인 ' + Math.max(0, payC) + '개 + 보석 ' + needG + '개로 사요' + (payC < 0 ? ' (거스름돈 코인 ' + (-payC) + '개)' : '') + ' · ' : '') + name + '의 이름을 지어 주세요', '', 8, v => { ECO.coins -= payC; ECO.gems -= needG; ECO.pets.push({ kind, name: v }); ecoSave(); msg = '"' + v + '"(' + name + ')를 입양했어요!'; msgT = 3; SFX.clear(); }, () => { });
       return;
     }
   };
@@ -427,9 +428,9 @@ function PetShop() {
   S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#21402e'; ctx.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 40) { ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, 0, 20, H); }
-    topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 화면을 자유롭게 돌아다녀요');
+    topBar('🐾 펫 상점', '코인·보석(1개=10원)으로 펫을 입양해요 · 펫은 마우스로 끌어서 구석 우리에 가둘 수 있어요');
     cards.forEach(c => {
-      const [name, price, , , kind] = PETS[c.i], can = ECO.coins >= price, h = inside(mouse.x, mouse.y, c);
+      const [name, price, , , kind] = PETS[c.i], can = ECO.coins + ECO.gems * GEM_VALUE >= price, h = inside(mouse.x, mouse.y, c);
       box(c.x, c.y - (h ? 4 : 0), c.w, c.h, h ? '#fff3c8' : '#fff8e6', can ? '#3a2a1a' : '#9a9a9a', 3);
       const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false; ctx.drawImage(petImg(kind, (S.t * 4 | 0) % 2 && h ? 1 : 0), c.x + c.w / 2 - 32, c.y + 12 - (h ? 4 : 0), 64, 64); ctx.imageSmoothingEnabled = sm;
       T(name, c.x + c.w / 2, c.y + 96 - (h ? 4 : 0), 24, '#2a1d12', 'center');
@@ -1189,7 +1190,7 @@ function Stairs(cfg) {
   const SW = 22, SH = 12;
   let paused = false, cd = 0; const PB2 = { x: 132, y: 10, w: 126, h: 34 };
   let items = [], mode = 'select', diff = null, steps, idx, face, gauge, started, hearts = 3, ft = 0, camX = 0, camY = 0, hop = 0, shake = 0;
-  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } items = steps.map((_, i) => i < 3 || i >= diff.goal ? null : Math.random() < 0.007 ? 'g' : Math.random() < 0.1 ? 'c' : null); idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
+  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } items = steps.map((_, i) => i < 3 || i >= diff.goal ? null : Math.random() < 0.02 ? 'g' : Math.random() < 0.2 ? 'c' : null); idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
   function fall() { mode = 'fall'; ft = 0; SFX.fall(); }
   function climb() {
     const d = steps[idx + 1] - steps[idx];
@@ -1363,7 +1364,7 @@ function PoliceStage2() {
   function spawn() {
     const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
     ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.7, 1.15 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
-    if (Math.random() < 0.22) { const free = [0, 1, 2].filter(l => !ls.includes(l)); if (free.length) objs.push({ l: free[Math.floor(Math.random() * free.length)], z: 0, dur: 1.3, k: 0, rot: 0, coin: true }); } // 가끔 코인 (그 칸에 서 있으면 획득)
+    if (Math.random() < 0.4) { const free = [0, 1, 2].filter(l => !ls.includes(l)); if (free.length) objs.push({ l: free[Math.floor(Math.random() * free.length)], z: 0, dur: 1.3, k: 0, rot: 0, coin: true }); } // 가끔 코인 (그 칸에 서 있으면 획득)
     windup = 0.25;
   }
   S.key = k => {
@@ -1567,7 +1568,7 @@ function PoliceStage3() {
     // 랜턴: 출발점 → 탈출구로 가는 길을 따라 놓아 길 안내 (꺾이는 곳은 바깥쪽 구석, 곧은 길은 벽 쪽)
     // 열쇠: 출발점에서 충분히 먼 길 위 아무 칸에 무작위로 놓기 (매 판 다름)
     { const cand = []; for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) if (map[y][x] === 0 && Math.hypot(x - 1, y - 1) > 6 && Math.hypot(x - (TW - 2), y - (TH - 2)) > 3) cand.push([x, y]); kz = []; nKey = 0; let guard = 0; while (kz.length < 3 && guard++ < 500) { const [kx, ky] = cand[Math.floor(Math.random() * cand.length)]; if (kz.every(k => Math.hypot(k.x - kx, k.y - ky) > 5)) kz.push({ x: kx + 0.5, y: ky + 0.5, got: false }); }
-      coins = []; for (let i = 0; i < 6; i++) { const [cx, cy] = cand[Math.floor(Math.random() * cand.length)]; if (!kz.some(k => Math.floor(k.x) === cx && Math.floor(k.y) === cy)) coins.push({ x: cx + 0.5, y: cy + 0.5 }); } }
+      coins = []; for (let i = 0; i < 10; i++) { const [cx, cy] = cand[Math.floor(Math.random() * cand.length)]; if (!kz.some(k => Math.floor(k.x) === cx && Math.floor(k.y) === cy)) coins.push({ x: cx + 0.5, y: cy + 0.5 }); } }
     lan = [];
     { const sx = 1, sy = 1, ex = TW - 2, ey = TH - 2, prev = new Map([[sx + ',' + sy, null]]), q = [[sx, sy]];
       while (q.length) { const [x, y] = q.shift(); if (x === ex && y === ey) break; for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (!prev.has(kk) && map[ny] && map[ny][nx] === 0) { prev.set(kk, [x, y]); q.push([nx, ny]); } } }
@@ -1999,7 +2000,7 @@ function DogStage1() {
   let mode = 'howto', x = 0, v = 150, y = 0, vy = 0, air = false, dbl = false, slide = false, hearts = 3, inv = 0, shake = 0, endT = 0, prompt = 0, gotP = false, missed = false;
   const obs = []; { let ox = 650, prev = ''; while (ox < LEN - 300) { const k = ox / LEN; const opts = ['low', 'tall', 'hang'].filter(t => t !== prev); const type = opts[Math.floor(Math.random() * opts.length)]; if (Math.abs(ox - PEND) > 160) { obs.push({ x: ox, type }); prev = type; } ox += rnd(240, 340) * (1 - k * 0.3); } }
   // 코인: 길 위 또는 점프해야 닿는 높이에 가끔
-  const cns = []; for (let cx = 520; cx < LEN - 300; cx += 260 + Math.random() * 260) cns.push({ x: cx, y: Math.random() < 0.5 ? GROUND - 14 : GROUND - 64 });
+  const cns = []; for (let cx = 520; cx < LEN - 300; cx += 150 + Math.random() * 150) cns.push({ x: cx, y: Math.random() < 0.5 ? GROUND - 14 : GROUND - 64 });
   function box2(o) { if (o.type === 'low') return { x: o.x, y: GROUND - 16, w: 20, h: 16 }; if (o.type === 'tall') return { x: o.x, y: GROUND - 54, w: 18, h: 54 }; return { x: o.x, y: 0, w: 28, h: GROUND - 14 }; }
   S.key = k => {
     if (mode === 'howto') { if (k === 'space' || k === 'enter') { SFX.click(); mode = 'play'; } return; }
@@ -2146,7 +2147,7 @@ function DogStage3() {
   const [gcx, gcy] = goalCands[Math.floor(rand() * goalCands.length)];
   const gx = OX + (gcx * 2 + 1.5) * TS, gy = OY + (gcy * 2 + 1.5) * TS;
   let px = OX + 1.5 * TS, py = OY + 1.5 * TS, mode = 'howto', endT = 0, face = 1;
-  const cns = []; { const open = []; for (let y = 1; y < mz.TH - 1; y++) for (let x = 1; x < mz.TW - 1; x++) if (m[y][x] === 0 && x + y > 4) open.push([x, y]); for (let i = 0; i < 5 && open.length; i++) { const [cx, cy] = open.splice(Math.floor(Math.random() * open.length), 1)[0]; cns.push({ x: OX + (cx + 0.5) * TS, y: OY + (cy + 0.5) * TS }); } }
+  const cns = []; { const open = []; for (let y = 1; y < mz.TH - 1; y++) for (let x = 1; x < mz.TW - 1; x++) if (m[y][x] === 0 && x + y > 4) open.push([x, y]); for (let i = 0; i < 8 && open.length; i++) { const [cx, cy] = open.splice(Math.floor(Math.random() * open.length), 1)[0]; cns.push({ x: OX + (cx + 0.5) * TS, y: OY + (cy + 0.5) * TS }); } }
   const solid = (x, y) => { const tx = Math.floor((x - OX) / TS), ty = Math.floor((y - OY) / TS); return !m[ty] || m[ty][tx] !== 0; };
   S.key = k => { if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); mode = 'play'; } };
   S.click = () => { if (mode === 'howto') S.key('space'); };
@@ -2256,7 +2257,7 @@ function DogStage4() {
   function put(name, target) { for (let k = 0; k < 200; k++) { const x = 80 + rnd2() * (MW - 160), y = 80 + rnd2() * (MH - 160); if (!tooClose(x, y) && Math.abs(y - MH * 0.55) > 50) { places.push({ x, y, name, target, shelter: /대피소/.test(name) }); return; } } }
   put('서울 야르 대피소', true); names.forEach(n => put(n));
   const target = places[0];
-  const mcoins = []; for (let i = 0; i < 4; i++) mcoins.push({ x: 60 + rnd2() * (MW - 120), y: 60 + rnd2() * (MH - 120) }); // 지도 곳곳에 숨은 코인 (클릭해서 줍기)
+  const mcoins = []; for (let i = 0; i < 7; i++) mcoins.push({ x: 60 + rnd2() * (MW - 120), y: 60 + rnd2() * (MH - 120) }); // 지도 곳곳에 숨은 코인 (클릭해서 줍기)
   const hint = { x: target.x + rnd(-80, 80), y: target.y + rnd(-60, 60) };
   const roadsV = [], roadsH = []; for (let x = 120; x < MW; x += 150 + rnd2() * 80) roadsV.push(x); for (let y = 100; y < MH; y += 130 + rnd2() * 60) roadsH.push(y);
   const parks = []; for (let i = 0; i < 7; i++) parks.push([rnd2() * MW, rnd2() * MH, 80 + rnd2() * 120, 60 + rnd2() * 80]);
@@ -2332,7 +2333,7 @@ function DogStage5() {
   const goal = [TW - 2, TH - 2], onPath = new Set(); { let c = goal; while (c) { onPath.add(c[0] + ',' + c[1]); c = prev.get(c[0] + ',' + c[1]); } }
   const block = new Set();
   for (const k of onPath) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (m[ny][nx] === 0 && !onPath.has(kk)) block.add(kk); } }
-  const cns = []; { const ks = [...onPath].filter(k => k !== '1,1' && k !== goal.join(',')); for (let i = 0; i < 6 && ks.length; i++) { const [x, y] = ks.splice(Math.floor(Math.random() * ks.length), 1)[0].split(',').map(Number); cns.push({ x: (x + 0.5) * TS, y: (y + 0.5) * TS }); } }
+  const cns = []; { const ks = [...onPath].filter(k => k !== '1,1' && k !== goal.join(',')); for (let i = 0; i < 10 && ks.length; i++) { const [x, y] = ks.splice(Math.floor(Math.random() * ks.length), 1)[0].split(',').map(Number); cns.push({ x: (x + 0.5) * TS, y: (y + 0.5) * TS }); } }
   let px = 1.5 * TS, py = 1.5 * TS, hearts = 3, inv = 0, shake = 0, mode = 'howto', endT = 0, fall = [], ft = 1.5, face = 0, camX = 0, camY = 0;
   const solid = (x, y) => { const tx = Math.floor(x / TS), ty = Math.floor(y / TS); if (!m[ty] || m[ty][tx] !== 0) return true; return block.has(tx + ',' + ty); };
   const DEB = [0, 1, 2].map(k => mk(14, 14, p => { if (k === 0) { p(1, 3, 12, 8, '#8a8a8a'); p(3, 1, 8, 3, '#9a9a9a'); p(2, 10, 10, 3, '#6a6a6a'); } else if (k === 1) { p(2, 2, 10, 10, '#a85a3a'); p(4, 4, 6, 2, '#c87a5a'); p(2, 7, 10, 1, '#7a3a2a'); } else { p(1, 5, 12, 4, '#6a7a8a'); p(5, 1, 4, 12, '#6a7a8a'); p(2, 6, 10, 2, '#8a9aaa'); } }));
@@ -2450,7 +2451,7 @@ function DogStage6() {
       if (sel === 2) { go(HappyEnding()); } else go(SadEnding());
       mode = 'done'; return;
     }
-    if (sel === q.a) { SFX.ok(); addCoin(1, W / 2, 300); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
+    if (sel === q.a) { SFX.ok(); addCoin(2, W / 2, 300); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
     else { SFX.bad(); mode = 'wrong'; msgT = 0; }
   }
   S.key = k => {
@@ -2553,11 +2554,28 @@ function HappyEnding() {
 const PS = 34;            // 화면에서 펫 크기
 const PET_ACT = { chick: '콕콕', ham: '데굴데굴', bun: '깡총', cat: '쿨쿨', dog: '멍!', peng: '슝~', fox: '폴짝!', dragon: '훨훨' };
 let WALK = [];
+const PEN = { x: W - 186, y: H - 86, w: 176, h: 78 };   // 오른쪽 아래 '펫 우리'
+const DRAG = { w: null, ox: 0, oy: 0, lx: 0, ly: 0, vx: 0, vy: 0, moved: false };
+let PET_EAT_CLICK = false;
+function penPos(w) { w.surf = 'pen'; w.st = 'sit'; w.tm = 1 + Math.random() * 2; w.y = PEN.y + PEN.h - PS - 6; w.x = Math.max(PEN.x + 6, Math.min(PEN.x + PEN.w - PS - 6, w.x)); w.spin = 0; }
+function petAt(x, y) { for (let i = WALK.length - 1; i >= 0; i--) { const w = WALK[i]; if (x > w.x - 4 && x < w.x + PS + 4 && y > w.y - 4 && y < w.y + PS + 4) return w; } return null; }
+function petsGrab(x, y) {
+  if (!scene || scene.stairs || INPUT_OPEN) return false;
+  const w = petAt(x, y); if (!w) return false;
+  DRAG.w = w; DRAG.ox = x - w.x; DRAG.oy = y - w.y; DRAG.lx = x; DRAG.ly = y; DRAG.vx = DRAG.vy = 0; DRAG.moved = false;
+  w.surf = 'drag'; w.st = 'drag'; w.spin = 0; w.say = '으앙~'; w.sayT = 0.8; PET_EAT_CLICK = true; return true;
+}
+function petsDrop() {
+  const w = DRAG.w; if (!w) return; DRAG.w = null;
+  const i = WALK.indexOf(w), cx = w.x + PS / 2, cy = w.y + PS / 2;
+  if (cx > PEN.x && cx < PEN.x + PEN.w && cy > PEN.y - 20 && cy < PEN.y + PEN.h) { penPos(w); w.say = '쏙!'; w.sayT = 1; if (ECO.pets[i]) { ECO.pets[i].pen = true; ecoSave(); } SFX.click(); }
+  else { w.surf = 'air'; w.st = 'fall'; w.vx = Math.max(-600, Math.min(600, DRAG.vx)); w.vy = Math.max(-600, Math.min(600, DRAG.vy)); if (ECO.pets[i] && ECO.pets[i].pen) { ECO.pets[i].pen = false; ecoSave(); } }
+}
 function petsSync() {
   if (WALK.length !== ECO.pets.length || WALK.some((w, i) => w.kind !== ECO.pets[i].kind)) {
     WALK = ECO.pets.map((p, i) => (WALK[i] && WALK[i].kind === p.kind) ? WALK[i] : { kind: p.kind, x: 120 + Math.random() * (W - 240), y: -PS - i * 30, vx: 0, vy: 0, surf: 'air', st: 'fall', tm: 0, dir: Math.random() < 0.5 ? -1 : 1, spin: 0, say: '', sayT: 0 });
   }
-  WALK.forEach((w, i) => w.name = ECO.pets[i].name);
+  WALK.forEach((w, i) => { w.name = ECO.pets[i].name; if (ECO.pets[i].pen && w.surf !== 'pen' && w.surf !== 'drag') penPos(w); });
 }
 function petPick(w) { // 바닥에서 다음 행동 고르기
   const r = Math.random();
@@ -2569,9 +2587,18 @@ function petPick(w) { // 바닥에서 다음 행동 고르기
 }
 function petsUpdate(dt) {
   petsSync();
-  const G = 1100, top = 0, bot = H - PS, lft = 0, rgt = W - PS;
+  const G = 1100, top = 0, bot = H - PS, lft = 0, rgt = W - PS, penOn = WALK.some(w => w.surf === 'pen');
   WALK.forEach(w => {
     w.tm -= dt; if (w.sayT > 0) w.sayT -= dt;
+    if (w.surf === 'drag') { // 마우스로 들고 있는 중
+      const nx = mouse.x - DRAG.ox, ny = mouse.y - DRAG.oy; DRAG.vx = (mouse.x - DRAG.lx) / Math.max(dt, 0.001); DRAG.vy = (mouse.y - DRAG.ly) / Math.max(dt, 0.001); DRAG.lx = mouse.x; DRAG.ly = mouse.y;
+      w.spin = Math.max(-0.6, Math.min(0.6, (nx - w.x) * 0.05)) + Math.sin(performance.now() / 150) * 0.15; w.x = nx; w.y = ny; return;
+    }
+    if (w.surf === 'pen') { // 우리 안에서만 꼼지락
+      if (w.st === 'walk') { w.x += w.dir * 30 * dt; if (w.x < PEN.x + 6 || w.x > PEN.x + PEN.w - PS - 6) { w.dir = -w.dir; w.x = Math.max(PEN.x + 6, Math.min(PEN.x + PEN.w - PS - 6, w.x)); } }
+      if (w.tm <= 0) { w.st = Math.random() < 0.5 ? 'walk' : 'sit'; w.tm = 1 + Math.random() * 3; if (Math.random() < 0.4) w.dir = -w.dir; }
+      return;
+    }
     if (w.surf === 'air') {
       if (w.st === 'fly') { // 아기 용: 하늘을 날아다님
         w.x += w.dir * 90 * dt; w.y += Math.sin(performance.now() / 300) * 40 * dt - (w.y - 140) * 0.6 * dt;
@@ -2582,7 +2609,8 @@ function petsUpdate(dt) {
       w.vy += G * dt; w.x += w.vx * dt; w.y += w.vy * dt;
       if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x)); if (Math.random() < 0.6 && w.y > 40 && w.y < bot - 20) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 2 + Math.random() * 4; w.vx = w.vy = 0; } else w.vx = -w.vx * 0.5; }
       if (w.y < top) { w.y = top; w.vy = 0; }
-      if (w.y >= bot) { w.y = bot; w.vy = 0; w.vx = 0; w.surf = 'floor'; w.st = 'sit'; w.tm = 0.5 + Math.random(); w.spin = 0; }
+      if (penOn && w.y >= PEN.y - PS && w.x + PS / 2 > PEN.x && w.y < bot) { w.vx = -Math.abs(w.vx) - 60; }
+      if (w.y >= bot) { w.y = bot; if (penOn && w.x + PS > PEN.x) w.x = PEN.x - PS - 4; w.vy = 0; w.vx = 0; w.surf = 'floor'; w.st = 'sit'; w.tm = 0.5 + Math.random(); w.spin = 0; }
       if (w.kind === 'ham' && w.st === 'fall') w.spin += dt * 10;
       return;
     }
@@ -2590,6 +2618,7 @@ function petsUpdate(dt) {
       if (w.st === 'walk' || (w.st === 'act' && (w.kind === 'peng' || w.kind === 'ham'))) {
         const sp = w.st === 'act' ? (w.kind === 'peng' ? 260 : 180) : 46 + (w.kind === 'dog' ? 20 : 0);
         w.x += w.dir * sp * dt; if (w.kind === 'ham' && w.st === 'act') w.spin += w.dir * dt * 12;
+        if (penOn && w.dir > 0 && w.x > PEN.x - PS - 4 && w.x < PEN.x) { w.x = PEN.x - PS - 4; w.dir = -1; } // 우리 바깥 펫은 우리 앞에서 돌아섬
         if (w.x <= lft || w.x >= rgt) { w.x = Math.max(lft, Math.min(rgt, w.x));
           if (w.wantWall || Math.random() < 0.35) { w.surf = w.x <= lft ? 'left' : 'right'; w.st = 'climb'; w.tm = 3 + Math.random() * 6; w.wantWall = false; } else w.dir = -w.dir; }
       }
@@ -2611,7 +2640,17 @@ function petsUpdate(dt) {
     }
   });
 }
+function penDraw() {
+  const any = WALK.some(w => w.surf === 'pen'), dragging = !!DRAG.w;
+  if (!any && !dragging) return;
+  const hot = dragging && mouse.x > PEN.x && mouse.x < PEN.x + PEN.w && mouse.y > PEN.y - 20 && mouse.y < PEN.y + PEN.h;
+  ctx.fillStyle = hot ? 'rgba(255,230,120,.55)' : dragging ? 'rgba(120,200,120,.45)' : 'rgba(90,150,80,.55)'; ctx.fillRect(PEN.x, PEN.y, PEN.w, PEN.h);
+  ctx.fillStyle = '#8a5a2a'; for (let x = PEN.x; x <= PEN.x + PEN.w; x += 22) ctx.fillRect(x, PEN.y - 6, 6, PEN.h + 6);
+  ctx.fillRect(PEN.x, PEN.y + 6, PEN.w + 6, 5); ctx.fillRect(PEN.x, PEN.y + PEN.h - 14, PEN.w + 6, 5);
+  T(dragging ? '여기에 놓으면 펫 우리에 쏙!' : '펫 우리 (끌어서 꺼내기)', PEN.x + PEN.w / 2, PEN.y - 14, 15, hot ? '#ffe680' : '#fff', 'center', FONT_UI, '#000');
+}
 function petsDraw() {
+  penDraw();
   const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
   const now = performance.now() / 1000;
   WALK.forEach((w, i) => {
@@ -2625,6 +2664,7 @@ function petsDraw() {
     if (w.st === 'act' && w.kind === 'chick') bob = Math.abs(Math.sin(now * 14)) * 4;
     if (w.st === 'act' && w.kind === 'dog') rot += Math.sin(now * 30) * 0.08;
     if (w.st === 'sit') sy = 0.92;
+    if (w.surf === 'drag') flip = false;
     if (w.st === 'act' && w.kind === 'cat') sy = 0.8;
     const cx = w.x + PS / 2, cy = w.y + PS / 2;
     ctx.save(); ctx.translate(cx, cy + bob); ctx.rotate(rot + w.spin); ctx.scale(flip ? -1 : 1, sy);
@@ -2636,7 +2676,7 @@ function petsDraw() {
     if (w.st === 'act' && w.kind === 'cat' && w.surf === 'floor') T('z'.repeat(1 + ((now * 2) | 0) % 3), w.x + PS, w.y - 4, 16, '#cfe', 'left');
     if (w.sayT > 0) T(w.say, tx, ty, 16, '#fff', 'center', FONT_UI, '#000');
     else if (hov) T('♥ ' + w.name, tx, ty, 15, '#ffd0e0', 'center', FONT_UI, '#000');
-    else if (w.surf === 'floor') T(w.name, tx, ty, 13, '#fff', 'center', FONT_UI, '#000');
+    else if (w.surf === 'floor' || w.surf === 'pen') T(w.name, tx, ty, 13, '#fff', 'center', FONT_UI, '#000');
   });
   ctx.imageSmoothingEnabled = sm;
 }
@@ -2677,7 +2717,7 @@ function Plaza() {
   const me = { x: 300 + Math.random() * 360, y: 400, dir: 1, walk: 0, emote: '', emoteT: 0, say: '', sayT: 0 };
   const EMO = ['👋', '❤️', '😂', '👍', '🎉', '😮'];
   const EB = EMO.map((e, i) => ({ x: 214 + i * 64, y: 482, w: 56, h: 46, e }));
-  const CB = { x: 614, y: 482, w: 196, h: 46 };
+  const CB = { x: 604, y: 482, w: 160, h: 46 };
   const FX = 480, FY = 300, FR = 78;              // 분수대 (못 지나감)
   let others = {}, chat = [], online = null, busy = false, lastSync = -9, sendEmote = null, sendSay = null, seen = {};
   const say = () => {
@@ -2765,7 +2805,7 @@ function Plaza() {
     if (chat.length) { const sh = chat.slice(-5); box(12, 470 - sh.length * 24 - 14, 196, sh.length * 24 + 12, 'rgba(10,10,30,.6)', null); }
     chat.slice(-5).forEach((c, i, a) => { const s = c.name + ': ' + c.msg; T(s.length > 14 ? s.slice(0, 14) + '…' : s, 20, 470 - (a.length - i) * 24 + 2, 15, c.name === ECO.nick ? '#ffe680' : '#fff', 'left', FONT_TX); });
     EB.forEach(b => { const h = inside(mouse.x, mouse.y, b); box(b.x, b.y, b.w, b.h, h ? '#ffe08a' : 'rgba(20,20,50,.85)', '#fff', 2); T(b.e, b.x + b.w / 2, b.y + b.h / 2 + 1, 26, '#fff', 'center'); });
-    btnDraw(CB, '💬 채팅 (Enter)', '#2a6a4a', 21);
+    btnDraw(CB, '💬 채팅 (Enter)', '#2a6a4a', 19);
   };
   return S;
 }
