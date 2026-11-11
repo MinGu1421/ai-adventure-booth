@@ -24,7 +24,7 @@ function MainMenu() {
   { x: W / 2 - 260, y: 330, w: 520, h: 96, n: '주인을 찾아서', s: '주인을 잃어버린 AI 강아지 로봇의 모험', go: () => (typeof DogIntro === 'function' ? DogIntro() : Notice('제작 중!', '주인을 찾아서는 곧 추가됩니다.', () => MainMenu())) }];
   // 아래쪽 작은 버튼: 명예의 전당 · 펫 상점 · 초기화
   const B2 = [{ x: 14, y: 14, w: 180, h: 44, n: '🏆 명예의 전당', go: () => HallOfFame(), col: '#6a4a10' }, { x: 14, y: 66, w: 180, h: 44, n: '🐾 펫 상점', go: () => PetShop(), col: '#1f5a3a' }, { x: 14, y: 118, w: 180, h: 44, n: '⟲ 초기화', go: () => ResetConfirm(), col: '#6a1a1a' }];
-  S.enter = () => { G.pendant = false; };
+  S.enter = () => { G.pendant = false; if (!ECO.nick) setTimeout(() => { if (!ECO.nick && !INPUT_OPEN && scene === S) askText('어서 오세요! 닉네임을 정해 주세요', '명예의 전당 기록에 이 이름이 남아요 (10자 이내)', '', 10, v => { ECO.nick = v; ecoSave(); SFX.ok(); }); }, 450); };
   S.click = (x, y) => { B.forEach(b => { if (inside(x, y, b)) { SFX.ok(); go(b.go()); } }); B2.forEach(b => { if (inside(x, y, b)) { SFX.click(); go(b.go()); } }); };
   S.draw = () => {
     L.clearRect(0, 0, LW, LH); bgMenu(L, S.t); blitLo();
@@ -45,7 +45,7 @@ function MainMenu() {
     // 입양한 펫들이 길 위를 뛰어다님 (이름표와 함께)
     ECO.pets.forEach((p, i) => { const sp = 34 + (i % 3) * 9, x = ((S.t * sp + i * 137) % (W + 120)) - 60, y = 498 + (i % 2) * 10, f = (S.t * 8 + i | 0) % 2; const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false; ctx.drawImage(petImg(p.kind, f), x, y - 34 - (f ? 2 : 0), 34, 34); ctx.imageSmoothingEnabled = sm; T(p.name, x + 17, y - 40, 13, '#fff', 'center'); });
     B2.forEach(b => btnDraw(b, b.n, b.col, 19));
-    drawWallet(W - 208, 10);
+    drawWallet(W - 208, 10); if (ECO.nick) T('👤 ' + ECO.nick, W - 16, 74, 18, '#fff', 'right');
     T('마우스를 버튼에 가져다 대고 클릭하세요', W / 2, H - 22, 18, '#ccd', 'center');
   };
   return S;
