@@ -53,19 +53,43 @@ function topBar(title, sub) {
 }
 const btnDraw = (b, label, col, size) => { const h = inside(mouse.x, mouse.y, b) && !b.off; box(b.x, b.y, b.w, b.h, b.off ? '#55556a' : h ? '#ffe08a' : col || '#2a2a5a', b.off ? '#888' : '#fff', 3); T(label, b.x + b.w / 2, b.y + b.h / 2 + 1, size || 22, b.off ? '#aaa' : h ? '#222' : '#fff', 'center'); };
 
+// ---------- 서버(Supabase) 명예의 전당 : 4대 컴퓨터 공유 ----------
+const SB_URL = 'https://pnwzpicrweiawbakimhz.supabase.co', SB_KEY = 'sb_publishable_IRsNs7VeiWxTiZJ5VOliwA_Rll7jWYy';
+const SB_H = { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+const HALL = { list: loadJSON(HALL_KEY + '_cache', []), online: null, busy: false, at: 0 };
+function hallFetch() {
+  if (HALL.busy) return; HALL.busy = true;
+  fetch(SB_URL + '/rest/v1/booth_hall?select=name,pts&order=pts.desc&limit=100', { headers: SB_H })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => { HALL.list = d.map(e => ({ name: e.name, pts: Number(e.pts) })); HALL.online = true; saveJSON(HALL_KEY + '_cache', HALL.list); })
+    .catch(() => { HALL.online = false; })
+    .finally(() => { HALL.busy = false; HALL.at = performance.now(); });
+}
+async function hallOffer(name, pts) {
+  let total = 0, left = pts;
+  while (left > 0) { const n = Math.min(5000, left);
+    const r = await fetch(SB_URL + '/rest/v1/rpc/booth_offer', { method: 'POST', headers: SB_H, body: JSON.stringify({ p_name: name, p_pts: n }) });
+    if (!r.ok) throw new Error('offer ' + r.status); total = Number(await r.json()); left -= n; }
+  return total;
+}
+
 // ---------- 명예의 전당 ----------
 function HallOfFame() {
   const S = { noHome: true };
   const BC = { x: 120, y: 420, w: 220, h: 56 }, BG = { x: 370, y: 420, w: 220, h: 56 }, BN = { x: 620, y: 420, w: 220, h: 56 };
   let msg = '', msgT = 0;
   const askNick = (first) => askText(first ? '명예의 전당 첫 입장! 닉네임을 정해 주세요' : '닉네임 바꾸기', '누가 세운 기록인지 알 수 있도록 이름을 남겨요 (10자 이내)', ECO.nick, 10, v => { ECO.nick = v; ecoSave(); SFX.ok(); }, first ? null : () => { });
-  S.enter = () => { if (!ECO.nick) setTimeout(() => askNick(true), 350); };
+  let sending = false;
+  S.enter = () => { hallFetch(); if (!ECO.nick) setTimeout(() => askNick(true), 350); };
   const offer = (coins, gems) => {
     if (!ECO.nick) { askNick(true); return; }
     const pts = coins + gems * GEM_VALUE; if (pts <= 0) { msg = '바칠 재화가 없어요. 스테이지에서 코인과 보석을 모아 오세요!'; msgT = 3; SFX.bad(); return; }
-    ECO.coins -= coins; ECO.gems -= gems; ecoSave();
-    const h = hallLoad(); let r = h.find(e => e.name === ECO.nick); if (!r) { r = { name: ECO.nick, pts: 0 }; h.push(r); } r.pts += pts; r.at = Date.now(); hallSave(h);
-    msg = pts + '점을 바쳤어요! (지금까지 ' + r.pts + '점)'; msgT = 3; SFX.clear();
+    if (sending) return; sending = true; msg = '서버에 바치는 중…'; msgT = 30; SFX.click();
+    hallOffer(ECO.nick, pts).then(total => {
+      ECO.coins -= coins; ECO.gems -= gems; ecoSave();
+      msg = pts + '점을 바쳤어요! (지금까지 ' + total + '점)'; msgT = 3; SFX.clear(); hallFetch();
+    }).catch(() => { msg = '서버에 연결하지 못했어요. 인터넷을 확인하고 다시 눌러 주세요 (재화는 그대로예요)'; msgT = 4; SFX.bad(); })
+      .finally(() => { sending = false; });
   };
   S.click = (x, y) => {
     if (INPUT_OPEN) return;
@@ -73,15 +97,16 @@ function HallOfFame() {
     if (inside(x, y, BC)) offer(ECO.coins, 0); else if (inside(x, y, BG)) offer(0, ECO.gems); else if (inside(x, y, BN)) { SFX.click(); askNick(false); }
   };
   S.key = k => { if (k === 'esc') S.click(BACK.x + 1, BACK.y + 1); };
-  S.update = dt => { if (msgT > 0) msgT -= dt; };
+  S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#1a1230'; ctx.fillRect(0, 0, W, H);
     for (let i = 0; i < 40; i++) { ctx.fillStyle = 'rgba(255,220,120,' + (0.15 + 0.15 * Math.sin(S.t * 2 + i)) + ')'; ctx.fillRect((i * 97) % W, (i * 53) % H, 3, 3); }
     topBar('🏆 명예의 전당', '모은 재화를 바치면 점수가 올라가요 · 코인 1점, 보석 ' + GEM_VALUE + '점');
-    const h = hallLoad().sort((a, b) => b.pts - a.pts); const top = h.slice(0, 7), mine = h.findIndex(e => e.name === ECO.nick);
+    const h = HALL.list.slice().sort((a, b) => b.pts - a.pts); const top = h.slice(0, 7), mine = h.findIndex(e => e.name === ECO.nick);
     box(120, 110, 720, 296, 'rgba(255,248,230,.97)', '#c8a040', 4);
     T('순위', 180, 136, 20, '#7a5a20', 'center'); T('닉네임', 400, 136, 20, '#7a5a20', 'center'); T('바친 점수', 720, 136, 20, '#7a5a20', 'center');
-    if (!top.length) T('아직 기록이 없어요. 첫 번째 주인공이 되어 보세요!', W / 2, 260, 24, '#7a5a20', 'center', FONT_TX);
+    T(HALL.online === null ? '● 서버 연결 중…' : HALL.online ? '● 온라인 · 4대 공유 순위' : '● 오프라인 · 마지막 순위 표시', 946, 74, 15, HALL.online ? '#1a8a3a' : '#b04020', 'right');
+    if (!top.length) T(HALL.online === null ? '순위를 불러오는 중…' : '아직 기록이 없어요.' + ' 첫 번째 주인공이 되어 보세요!', W / 2, 260, 24, '#7a5a20', 'center', FONT_TX);
     top.forEach((e, i) => { const y = 170 + i * 34, me = e.name === ECO.nick; if (me) { ctx.fillStyle = 'rgba(255,210,60,.35)'; ctx.fillRect(130, y - 15, 700, 30); } const medal = ['#ffc83a', '#c8ccd8', '#d88a4a'][i];
       if (medal) { ctx.fillStyle = medal; ctx.beginPath(); ctx.arc(180, y, 13, 0, 7); ctx.fill(); T(String(i + 1), 180, y + 1, 18, '#3a2a1a', 'center'); } else T(String(i + 1), 180, y + 1, 20, '#3a2a1a', 'center');
       T(e.name + (me ? '  (나)' : ''), 400, y + 1, 22, '#2a1d12', 'center', FONT_TX); T(e.pts.toLocaleString() + '점', 720, y + 1, 22, '#2a1d12', 'center'); });
@@ -131,7 +156,7 @@ function PetShop() {
     }
   };
   S.key = k => { if (k === 'esc') S.click(BACK.x + 1, BACK.y + 1); };
-  S.update = dt => { if (msgT > 0) msgT -= dt; };
+  S.update = dt => { if (msgT > 0) msgT -= dt; if (performance.now() - HALL.at > 5000) hallFetch(); };
   S.draw = () => {
     ctx.fillStyle = '#21402e'; ctx.fillRect(0, 0, W, H); for (let x = 0; x < W; x += 40) { ctx.fillStyle = 'rgba(255,255,255,.03)'; ctx.fillRect(x, 0, 20, H); }
     topBar('🐾 펫 상점', '코인으로 펫을 입양하고 이름을 지어 줘요 · 입양한 펫은 메인 화면에서 함께 뛰어놀아요');
