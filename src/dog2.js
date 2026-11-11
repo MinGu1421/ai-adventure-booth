@@ -23,6 +23,7 @@ function DogStage3() {
   const [gcx, gcy] = goalCands[Math.floor(rand() * goalCands.length)];
   const gx = OX + (gcx * 2 + 1.5) * TS, gy = OY + (gcy * 2 + 1.5) * TS;
   let px = OX + 1.5 * TS, py = OY + 1.5 * TS, mode = 'howto', endT = 0, face = 1;
+  const cns = []; { const open = []; for (let y = 1; y < mz.TH - 1; y++) for (let x = 1; x < mz.TW - 1; x++) if (m[y][x] === 0 && x + y > 4) open.push([x, y]); for (let i = 0; i < 5 && open.length; i++) { const [cx, cy] = open.splice(Math.floor(Math.random() * open.length), 1)[0]; cns.push({ x: OX + (cx + 0.5) * TS, y: OY + (cy + 0.5) * TS }); } }
   const solid = (x, y) => { const tx = Math.floor((x - OX) / TS), ty = Math.floor((y - OY) / TS); return !m[ty] || m[ty][tx] !== 0; };
   S.key = k => { if (mode === 'howto' && (k === 'space' || k === 'enter')) { SFX.click(); mode = 'play'; } };
   S.click = () => { if (mode === 'howto') S.key('space'); };
@@ -34,6 +35,7 @@ function DogStage3() {
     if (dx) face = Math.sign(dx);
     if (dx && !solid(px + dx + Math.sign(dx) * r, py - r + 1) && !solid(px + dx + Math.sign(dx) * r, py + r - 1)) px += dx;
     if (dy && !solid(px - r + 1, py + dy + Math.sign(dy) * r) && !solid(px + r - 1, py + dy + Math.sign(dy) * r)) py += dy;
+    for (let i = cns.length - 1; i >= 0; i--) if (Math.hypot(px - cns[i].x, py - cns[i].y) < 10) { addCoin(1, cns[i].x * 2, cns[i].y * 2); cns.splice(i, 1); }
     if (Math.hypot(px - gx, py - gy) < 12) { mode = 'clear'; SFX.clear(); }
   };
   S.draw = () => {
@@ -56,13 +58,14 @@ function DogStage3() {
     // 주인 자리
     R(L, gx - 8, gy - 8, 16, 16, '#ffe08a'); const b = Math.sin(S.t * 5) * 2;
     R(L, gx - 1, gy - 22 + b, 2, 12, '#3a2a1a'); R(L, gx + 1, gy - 22 + b, 9, 6, '#ff4a4a'); L.fillStyle = '#3a2a1a'; L.font = 'bold 7px sans-serif'; L.fillText('주인 자리', gx - 15, gy + 15);
+    for (const c of cns) { L.save(); L.translate(c.x, c.y + Math.sin(S.t * 5 + c.x) * 1.2); L.scale(Math.abs(Math.cos(S.t * 3 + c.x)) * 0.8 + 0.2, 1); L.drawImage(COIN_IMG, -4, -4, 8, 8); L.restore(); }
     // 위치 표시 아이콘 (로봇 강아지)
     const pb = Math.abs(Math.sin(S.t * 10)) * ((keys.w || keys.a || keys.s || keys.d) && mode === 'play' ? 2 : 0);
     R(L, px - 8, py + 6, 16, 2, '#0004');
     spr(L, SPR.dog[(keys.w || keys.a || keys.s || keys.d) && mode === 'play' ? ((S.t * 10 | 0) % 2) : 0], px - 10, py - 10 - pb, face < 0);
     blitLo();
     T('3 스테이지 · 주인 자리를 찾아라!  (사무실 배치 ' + (mi + 1) + '번)', W / 2 + 70, 24, 22, '#fff', 'center', FONT_UI, '#000');
-    T('W: 위   A: 왼쪽   S: 아래   D: 오른쪽', W / 2, H - 16, 20, '#fff', 'center', FONT_UI, '#000');
+    T('W: 위   A: 왼쪽   S: 아래   D: 오른쪽', W / 2, H - 16, 20, '#fff', 'center', FONT_UI, '#000'); if (mode !== 'howto') drawWallet(12, H - 54);
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
@@ -85,7 +88,7 @@ function DogDrawer() {
     const o = st.open ? Math.min(40, (t - st.open) * 80) : 0;
     R(c, 90, 140 + o, 160, 36, '#b8986a'); R(c, 160, 154 + o, 20, 4, '#5a4a3a');
     if (st.open && o > 30) { R(c, 110, 150, 40, 30, '#fff8e6'); R(c, 160, 148, 50, 34, '#e8e0c0'); R(c, 164, 152, 42, 26, '#9fd17a'); R(c, 180, 160, 4, 4, '#e8434e'); }
-    spr(c, SPR.dog[0], 300, 104, true);
+    spr(c, SPR.dog[0], 262, 116 - 16 * 2.6, true, 2.6); // 강아지 로봇을 배경 크기에 맞게 크게
   };
   return Cutscene([
     { n: '', t: '강아지 로봇은 드디어 주인이 일하던 자리를 찾았다!', bg },
@@ -130,6 +133,7 @@ function DogStage4() {
   function put(name, target) { for (let k = 0; k < 200; k++) { const x = 80 + rnd2() * (MW - 160), y = 80 + rnd2() * (MH - 160); if (!tooClose(x, y) && Math.abs(y - MH * 0.55) > 50) { places.push({ x, y, name, target, shelter: /대피소/.test(name) }); return; } } }
   put('서울 야르 대피소', true); names.forEach(n => put(n));
   const target = places[0];
+  const mcoins = []; for (let i = 0; i < 4; i++) mcoins.push({ x: 60 + rnd2() * (MW - 120), y: 60 + rnd2() * (MH - 120) }); // 지도 곳곳에 숨은 코인 (클릭해서 줍기)
   const hint = { x: target.x + rnd(-80, 80), y: target.y + rnd(-60, 60) };
   const roadsV = [], roadsH = []; for (let x = 120; x < MW; x += 150 + rnd2() * 80) roadsV.push(x); for (let y = 100; y < MH; y += 130 + rnd2() * 60) roadsH.push(y);
   const parks = []; for (let i = 0; i < 7; i++) parks.push([rnd2() * MW, rnd2() * MH, 80 + rnd2() * 120, 60 + rnd2() * 80]);
@@ -146,6 +150,7 @@ function DogStage4() {
     if (mode === 'howto') { S.key('space'); return; }
     if (mode !== 'play' || (drag && drag.moved)) return;
     const [mx, my] = toMap(x, y);
+    const ci = mcoins.findIndex(c => Math.hypot(mx - c.x, my - c.y) < 16); if (ci >= 0) { mcoins.splice(ci, 1); addCoin(1, x, y); return; }
     if (Math.hypot(mx - target.x, my - target.y) < 22) { mode = 'clear'; SFX.clear(); return; }
     const p = places.find(p => Math.hypot(mx - p.x, my - p.y) < 22); if (p) { wrong = { p, t: 1.5 }; SFX.bad(); }
   };
@@ -163,13 +168,14 @@ function DogStage4() {
       if (p.shelter) { ctx.fillStyle = '#fff'; ctx.fillRect(p.x - 2, p.y - 4, 4, 8); ctx.fillRect(p.x - 4, p.y - 2, 8, 3); }
       ctx.font = '9px ' + FONT_TX; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#efe6d2'; ctx.strokeText(p.name, p.x, p.y + 18); ctx.fillStyle = '#333'; ctx.fillText(p.name, p.x, p.y + 18);
     }
+    for (const c of mcoins) { ctx.save(); ctx.translate(c.x, c.y); ctx.scale(Math.abs(Math.cos(S.t * 3 + c.x)) * 0.8 + 0.2, 1); ctx.imageSmoothingEnabled = false; ctx.drawImage(COIN_IMG, -9, -9, 18, 18); ctx.restore(); }
     if (tm > 20 && mode === 'play') { ctx.strokeStyle = 'rgba(255,60,60,' + (0.6 + Math.sin(S.t * 6) * 0.3) + ')'; ctx.lineWidth = 6 / z; ctx.beginPath(); ctx.arc(hint.x, hint.y, 130, 0, Math.PI * 2); ctx.stroke(); }
     if (mode === 'clear') { ctx.strokeStyle = '#ff3a3a'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(target.x, target.y, 26 + Math.sin(S.t * 10) * 3, 0, Math.PI * 2); ctx.stroke(); }
     if (wrong) { ctx.strokeStyle = '#555'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(wrong.p.x - 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x + 14, wrong.p.y + 14); ctx.moveTo(wrong.p.x + 14, wrong.p.y - 14); ctx.lineTo(wrong.p.x - 14, wrong.p.y + 14); ctx.stroke(); }
     ctx.restore();
     box(W / 2 - 200, 8, 560, 44, 'rgba(255,248,230,.95)', '#3a2a1a', 3); T("지도에서 '서울 야르 대피소'를 찾아 클릭하세요!", W / 2 + 80, 31, 24, '#3a2a1a', 'center');
     box(W - 150, 60, 140, 34, 'rgba(0,0,0,.6)', '#fff', 2); T('⏱ ' + Math.floor(tm) + '초', W - 80, 78, 20, '#fff', 'center');
-    T('마우스 휠 위: 확대 · 아래: 축소 · 드래그: 지도 이동', W / 2, H - 18, 20, '#3a2a1a', 'center', FONT_UI, '#fff');
+    T('마우스 휠 위: 확대 · 아래: 축소 · 드래그: 지도 이동 · 반짝이는 코인도 클릭해서 주울 수 있어요', W / 2, H - 18, 18, '#3a2a1a', 'center', FONT_UI, '#fff'); if (mode !== 'howto') drawWallet(12, H - 100);
     if (tm > 20 && mode === 'play') T('힌트: 빨간 동그라미 근처를 찾아보세요!', W / 2, 75, 22, '#e83a3a', 'center', FONT_UI, '#fff');
     if (wrong) T('여기는 ' + wrong.p.name + '! 다시 찾아보세요', W / 2, H / 2, 30, '#fff', 'center', FONT_UI, '#000');
     if (mode === 'howto') {
@@ -203,6 +209,7 @@ function DogStage5() {
   const goal = [TW - 2, TH - 2], onPath = new Set(); { let c = goal; while (c) { onPath.add(c[0] + ',' + c[1]); c = prev.get(c[0] + ',' + c[1]); } }
   const block = new Set();
   for (const k of onPath) { const [x, y] = k.split(',').map(Number); for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (m[ny][nx] === 0 && !onPath.has(kk)) block.add(kk); } }
+  const cns = []; { const ks = [...onPath].filter(k => k !== '1,1' && k !== goal.join(',')); for (let i = 0; i < 6 && ks.length; i++) { const [x, y] = ks.splice(Math.floor(Math.random() * ks.length), 1)[0].split(',').map(Number); cns.push({ x: (x + 0.5) * TS, y: (y + 0.5) * TS }); } }
   let px = 1.5 * TS, py = 1.5 * TS, hearts = 3, inv = 0, shake = 0, mode = 'howto', endT = 0, fall = [], ft = 1.5, face = 0, camX = 0, camY = 0;
   const solid = (x, y) => { const tx = Math.floor(x / TS), ty = Math.floor(y / TS); if (!m[ty] || m[ty][tx] !== 0) return true; return block.has(tx + ',' + ty); };
   const DEB = [0, 1, 2].map(k => mk(14, 14, p => { if (k === 0) { p(1, 3, 12, 8, '#8a8a8a'); p(3, 1, 8, 3, '#9a9a9a'); p(2, 10, 10, 3, '#6a6a6a'); } else if (k === 1) { p(2, 2, 10, 10, '#a85a3a'); p(4, 4, 6, 2, '#c87a5a'); p(2, 7, 10, 1, '#7a3a2a'); } else { p(1, 5, 12, 4, '#6a7a8a'); p(5, 1, 4, 12, '#6a7a8a'); p(2, 6, 10, 2, '#8a9aaa'); } }));
@@ -221,6 +228,7 @@ function DogStage5() {
     ft -= dt; if (ft <= 0) { ft = rnd(0.7, 1.3); const a = Math.random() * Math.PI * 2, d = rnd(0, 50); fall.push({ x: px + Math.cos(a) * d + Math.cos(face) * 30, y: py + Math.sin(a) * d + Math.sin(face) * 30, t: 0, k: irnd(0, 2) }); }
     for (const f of fall) { f.t += dt; if (f.t >= 1.1 && !f.land) { f.land = true; noise(0.2, 0.15, 500); if (Math.hypot(f.x - px, f.y - py) < 16 && inv <= 0) { hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('주인을 찾지 못했어요.')); return; } } } }
     fall = fall.filter(f => f.t < 2.2);
+    for (let i = cns.length - 1; i >= 0; i--) if (Math.hypot(px - cns[i].x, py - cns[i].y) < 14) { addCoin(1, W / 2, H / 2 - 30); cns.splice(i, 1); }
     if (Math.floor(px / TS) === goal[0] && Math.floor(py / TS) === goal[1]) { mode = 'clear'; SFX.clear(); }
   };
   S.draw = () => {
@@ -234,6 +242,7 @@ function DogStage5() {
     }
     for (const k of block) { const [x, y] = k.split(',').map(Number), X = x * TS, Y = y * TS; for (let i = 0; i < 3; i++) { R(L, X + 4, Y + 8 + i * 12, TS - 8, 6, i % 2 ? '#ffd23a' : '#e8434e'); } R(L, X + 6, Y + 6, 3, 34, '#555'); R(L, X + TS - 9, Y + 6, 3, 34, '#555'); }
     const GX = goal[0] * TS, GY = goal[1] * TS; R(L, GX + 4, GY + 4, TS - 8, TS - 8, '#3a9a5a'); R(L, GX + 14, GY + 16, 16, 22, '#2a2a2a'); L.fillStyle = '#fff'; L.font = 'bold 8px sans-serif'; L.fillText('대피소', GX + 10, GY + 13);
+    for (const c of cns) { L.save(); L.translate(c.x, c.y + Math.sin(S.t * 5 + c.x) * 1.5); L.scale(Math.abs(Math.cos(S.t * 3 + c.x)) * 0.8 + 0.2, 1); L.drawImage(COIN_IMG, -6, -6, 12, 12); L.restore(); }
     for (const f of fall) { if (!f.land) { const s = 4 + f.t * 10; L.fillStyle = 'rgba(0,0,0,' + (0.2 + f.t * 0.4) + ')'; L.beginPath(); L.ellipse(f.x, f.y, s, s * 0.6, 0, 0, Math.PI * 2); L.fill(); spr(L, DEB[f.k], f.x - 7, f.y - 7 - (1.1 - f.t) * 200); } else spr(L, DEB[f.k], f.x - 7, f.y - 7); }
     if (!(inv > 0 && (S.t * 12 | 0) % 2)) { L.save(); L.translate(Math.round(px), Math.round(py)); L.drawImage(SPR.dog[(keys.w || keys.a || keys.s || keys.d) ? ((S.t * 10 | 0) % 2) : 0], -10, -12); L.restore(); }
     L.restore(); blitLo();
@@ -246,7 +255,7 @@ function DogStage5() {
     T('지도', mx0 + mmW / 2, my0 + mmH + 20, 18, '#fff', 'center', FONT_UI, '#000');
     drawHearts(hearts, 3, shake > 0);
     T('5 스테이지 · 대피소로!', 150, 70, 26, '#fff', 'left', FONT_UI, '#000');
-    T('W: 앞(위)   A: 왼쪽   S: 뒤(아래)   D: 오른쪽', W / 2, H - 20, 20, '#fff', 'center', FONT_UI, '#000');
+    T('W: 앞(위)   A: 왼쪽   S: 뒤(아래)   D: 오른쪽', W / 2, H - 20, 20, '#fff', 'center', FONT_UI, '#000'); if (mode !== 'howto') drawWallet(12, H - 104);
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
@@ -318,7 +327,7 @@ function DogStage6() {
       if (sel === 2) { go(HappyEnding()); } else go(SadEnding());
       mode = 'done'; return;
     }
-    if (sel === q.a) { SFX.ok(); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
+    if (sel === q.a) { SFX.ok(); addCoin(1, W / 2, 300); qi++; sel = 0; if (qi === Q.length) { mode = 'cold'; msgT = 0; cold = 0; } }
     else { SFX.bad(); mode = 'wrong'; msgT = 0; }
   }
   S.key = k => {
@@ -364,6 +373,7 @@ function DogStage6() {
       ctx.fillStyle = 'rgba(120,0,0,.7)'; ctx.fillRect(0, 0, W, H);
       T(Q[qi].bad, W / 2, 230, 34, '#fff', 'center', FONT_UI, '#000'); T('오답! 처음 질문부터 다시 시작해요', W / 2, 300, 26, '#ffd0d0', 'center', FONT_UI, '#000');
     }
+    if (mode === 'q') drawWallet(W - 208, 10);
   };
   return Pausable(S, () => mode === 'q');
 }

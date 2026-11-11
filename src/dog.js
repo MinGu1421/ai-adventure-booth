@@ -78,6 +78,8 @@ function DogStage1() {
   const S = {}; const GROUND = 210, DX = 70, LEN = 5600, PEND = 2700, DS = 1.5;
   let mode = 'howto', x = 0, v = 150, y = 0, vy = 0, air = false, dbl = false, slide = false, hearts = 3, inv = 0, shake = 0, endT = 0, prompt = 0, gotP = false, missed = false;
   const obs = []; { let ox = 650, prev = ''; while (ox < LEN - 300) { const k = ox / LEN; const opts = ['low', 'tall', 'hang'].filter(t => t !== prev); const type = opts[Math.floor(Math.random() * opts.length)]; if (Math.abs(ox - PEND) > 160) { obs.push({ x: ox, type }); prev = type; } ox += rnd(240, 340) * (1 - k * 0.3); } }
+  // 코인: 길 위 또는 점프해야 닿는 높이에 가끔
+  const cns = []; for (let cx = 520; cx < LEN - 300; cx += 260 + Math.random() * 260) cns.push({ x: cx, y: Math.random() < 0.5 ? GROUND - 14 : GROUND - 64 });
   function box2(o) { if (o.type === 'low') return { x: o.x, y: GROUND - 16, w: 20, h: 16 }; if (o.type === 'tall') return { x: o.x, y: GROUND - 54, w: 18, h: 54 }; return { x: o.x, y: 0, w: 28, h: GROUND - 14 }; }
   S.key = k => {
     if (mode === 'howto') { if (k === 'space' || k === 'enter') { SFX.click(); mode = 'play'; } return; }
@@ -101,6 +103,7 @@ function DogStage1() {
         o.hit = true; hearts--; inv = 1.3; shake = 0.4; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('주인을 찾지 못했어요.')); return; }
       }
     }
+    for (let i = cns.length - 1; i >= 0; i--) { const c = cns[i]; if (hb.x < c.x + 9 && hb.x + hb.w > c.x - 1 && hb.y < c.y + 9 && hb.y + hb.h > c.y - 1) { cns.splice(i, 1); addCoin(1, (c.x - x) * 2, c.y * 2); } }
     const dp = PEND - (x + DX);
     if (!gotP && dp < 90 && dp > -60) prompt = (dp + 60) / 150; else prompt = 0;
     if (x + DX > LEN) { mode = 'clear'; SFX.clear(); }
@@ -113,6 +116,7 @@ function DogStage1() {
     if (pxs > -120 && pxs < 560) { const pm = mound(80, 34, 9); L.drawImage(pm, pxs - 40, 205 - 34); if (!gotP && (S.t * 3 | 0) % 2) { R(L, pxs, 178, 3, 3, '#ffe85a'); R(L, pxs - 2, 179, 7, 1, '#fff8b0'); R(L, pxs + 1, 176, 1, 7, '#fff8b0'); } }
     // 출구
     const ex = LEN - x + DX; if (ex < 560) { R(L, ex, 120, 8, 92, '#555'); R(L, ex + 60, 120, 8, 92, '#555'); R(L, ex, 112, 68, 14, '#3a6a3a'); L.fillStyle = '#fff'; L.font = '8px sans-serif'; L.fillText('매립장 출구', ex + 12, 122); }
+    for (const c of cns) { const sx = c.x - x; if (sx < -10 || sx > 490) continue; L.save(); L.translate(sx + 4, c.y + 4 + Math.sin(S.t * 5 + c.x) * 1.5); L.scale(Math.abs(Math.cos(S.t * 3 + c.x)) * 0.8 + 0.2, 1); L.drawImage(COIN_IMG, -4, -4, 8, 8); L.restore(); }
     for (const o of obs) {
       const sx = o.x - x; if (sx < -40 || sx > 500) continue; const b = box2(o);
       if (o.type === 'low') { R(L, sx, b.y + 5, 12, 11, '#2a2a2e'); R(L, sx + 3, b.y + 3, 5, 3, '#2a2a2e'); R(L, sx + 2, b.y + 6, 3, 2, '#4a4a52'); R(L, sx + 9, b.y + 7, 11, 9, '#e8e8e0'); R(L, sx + 12, b.y + 5, 4, 3, '#e8e8e0'); R(L, sx + 11, b.y + 9, 3, 2, '#c8c8c0'); R(L, sx + 6, b.y + 12, 4, 4, '#c83a3a'); R(L, sx + 6, b.y + 12, 4, 1, '#ddd'); }
@@ -124,7 +128,7 @@ function DogStage1() {
     drawHearts(hearts, 3, shake > 0);
     T('1 스테이지 · 쓰레기 매립장 탈출', W / 2, 30, 28, '#fff', 'center', FONT_UI, '#000');
     box(W / 2 - 200, 52, 400, 14, '#0008', '#fff', 2); R(ctx, W / 2 - 197, 55, 394 * clamp(x / LEN, 0, 1), 8, '#ffd23a');
-    T('SPACE: 점프 (공중에서 한 번 더: 더블 점프)     SHIFT: 슬라이딩', W / 2, H - 22, 21, '#fff', 'center', FONT_UI, '#000');
+    T('SPACE: 점프 (공중에서 한 번 더: 더블 점프)     SHIFT: 슬라이딩', W / 2, H - 22, 21, '#fff', 'center', FONT_UI, '#000'); if (mode !== 'howto') drawWallet(12, 80);
     if (prompt > 0) {
       const bx = (PEND - x) * 2 - 40, s = 1 + Math.sin(S.t * 12) * 0.06;
       ctx.save(); ctx.translate(bx + 40, 250); ctx.scale(s, s); box(-56, -28, 112, 56, '#ffe08a', '#3a2a1a', 4); T('ENTER', 0, 1, 30, '#3a2a1a', 'center'); ctx.restore();

@@ -6,13 +6,14 @@ function Stairs(cfg) {
   const BTN = DIFFS.map((d, i) => ({ x: W / 2 - 200, y: 182 + i * 66, w: 400, h: 56 }));
   const SW = 22, SH = 12;
   let paused = false, cd = 0; const PB2 = { x: 132, y: 10, w: 126, h: 34 };
-  let mode = 'select', diff = null, steps, idx, face, gauge, started, hearts = 3, ft = 0, camX = 0, camY = 0, hop = 0, shake = 0;
-  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
+  let items = [], mode = 'select', diff = null, steps, idx, face, gauge, started, hearts = 3, ft = 0, camX = 0, camY = 0, hop = 0, shake = 0;
+  function build() { steps = [0]; let x = 0, d = 1; for (let i = 1; i <= diff.goal + 14; i++) { if (i > 2 && Math.random() < 0.38) d = -d; x += d; steps.push(x); } items = steps.map((_, i) => i < 3 || i >= diff.goal ? null : Math.random() < 0.007 ? 'g' : Math.random() < 0.1 ? 'c' : null); idx = 0; face = 1; gauge = 1; started = false; camX = 0; camY = 0; mode = 'play'; }
   function fall() { mode = 'fall'; ft = 0; SFX.fall(); }
   function climb() {
     const d = steps[idx + 1] - steps[idx];
     if (d !== face) { fall(); return; }
     idx++; hop = 1; SFX.step(); gauge = Math.min(1, gauge + 0.11);
+    if (items[idx]) { if (items[idx] === 'g') addGem(1, W / 2, H / 2 - 40); else addCoin(1, W / 2, H / 2 - 40); items[idx] = null; } // 계단 위 코인·보석 줍기
     if (idx >= diff.goal) { mode = 'clear'; ft = 0; SFX.clear(); }
   }
   S.key = k => {
@@ -49,6 +50,7 @@ function Stairs(cfg) {
         const x = ox + steps[i] * SW - SW / 2, y = oy - i * SH;
         R(L, x, y, SW, 5, cfg.stepCol[0]); R(L, x, y + 5, SW, 5, cfg.stepCol[1]); R(L, x, y, SW, 1, '#ffffff60');
         if (cfg.stepDeco) cfg.stepDeco(L, x, y, i);
+        if (items[i]) { const bob = Math.sin(S.t * 5 + i) * 1.5; L.drawImage(items[i] === 'g' ? GEM_IMG : COIN_IMG, x + SW / 2 - 4, y - 11 + bob, 8, 8); }
         if (i === diff.goal) { R(L, x + SW / 2, y - 26, 2, 26, '#eee'); R(L, x + SW / 2 + 2, y - 26, 12, 8, '#ff4a4a'); }
       }
       const ho = cfg.heroOff || [8, 24]; let px = ox + steps[idx] * SW - ho[0], py = oy - idx * SH - ho[1] - Math.sin(hop * Math.PI) * 5;
@@ -72,7 +74,7 @@ function Stairs(cfg) {
       drawHearts(hearts, 3, shake > 0);
       T(Math.min(idx, diff.goal) + ' / ' + diff.goal + ' 계단', W / 2, 32, 32, '#fff', 'center', FONT_UI, '#000');
       box(W / 2 - 150, 56, 300, 18, '#0008', '#fff', 2); R(ctx, W / 2 - 147, 59, 294 * gauge, 12, gauge > 0.35 ? '#5ee07a' : '#ff5a5a');
-      T(cfg.controls.map(c => c[0] + ': ' + c[2]).join('     '), W / 2, H - 24, 22, '#fff', 'center', FONT_UI, '#000');
+      T(cfg.controls.map(c => c[0] + ': ' + c[2]).join('     '), W / 2, H - 24, 22, '#fff', 'center', FONT_UI, '#000'); drawWallet();
       if (mode === 'retry') { T('추락! 처음부터 다시 도전!', W / 2, 220, 44, '#ff6a6a', 'center', FONT_UI, '#000'); T('남은 하트 ' + hearts + '개', W / 2, 280, 28, '#fff', 'center', FONT_UI, '#000'); }
       if (mode === 'clear') T('성공!', W / 2, 220, 70, '#ffe08a', 'center', FONT_UI, '#000');
       if (mode === 'play') { const h = inside(mouse.x, mouse.y, PB2) || paused; box(PB2.x, PB2.y, PB2.w, PB2.h, h ? '#ffe08a' : 'rgba(20,20,40,.75)', '#fff', 2); T(paused ? '▶ 계속 (E)' : 'Ⅱ 멈춤 (E)', PB2.x + PB2.w / 2, PB2.y + 18, 18, h ? '#222' : '#fff', 'center'); }

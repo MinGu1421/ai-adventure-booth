@@ -67,6 +67,12 @@ function makeTex(fn) { const a = new Uint8Array(32 * 32 * 3); for (let y = 0; y 
 const hsh = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const TEX_HEDGE = makeTex((x, y) => { const n = hsh(x, y), b = hsh(x >> 2, y >> 2); const g = 70 + n * 50 + b * 40; return [20 + n * 25, g, 25 + n * 20]; });
 const TEX_GATE = makeTex((x, y) => { if (y < 3 || y > 28 || x % 6 < 2) return [60, 50, 40]; return [255, 230, 140]; });
+// 자물쇠 3개가 걸린 탈출구 문 (모은 열쇠 수만큼 자물쇠가 열린 모습)
+const TEX_GATE_N = [0, 1, 2, 3].map(n => makeTex((x, y) => {
+  for (let i = 0; i < 3; i++) { const cx = 6 + i * 10, open = i < n;
+    const sy = open ? 9 : 11; if (y >= sy && y < sy + 5 && (x === cx - 2 || x === cx + 2) || y === sy && x >= cx - 2 && x <= cx + 2) return open ? [150, 160, 150] : [200, 200, 210];
+    if (y >= 16 && y < 23 && x >= cx - 3 && x <= cx + 3) { if (x === cx && (y === 18 || y === 19)) return [40, 30, 20]; return open ? [90, 200, 110] : [230, 180, 40]; } }
+  if (y < 3 || y > 28 || x % 6 < 2) return [60, 50, 40]; return [255, 230, 140]; }));
 
 const GARDEN_SEEDS = [1103, 2207, 3301, 4409, 5501, 6607]; // 미로 정원 맵 6개
 const LANTERN = mk(12, 30, p => { p(5, 8, 2, 22, '#2a2420'); p(3, 28, 6, 2, '#2a2420'); p(2, 0, 8, 2, '#3a3028'); p(3, 2, 6, 7, '#ffd27a'); p(4, 3, 4, 5, '#fff2c0'); p(2, 9, 8, 1, '#3a3028'); });
@@ -74,6 +80,7 @@ const LANTERN_DAT = LANTERN.getContext('2d').getImageData(0, 0, 12, 30).data;
 // 열쇠 (금색, 바닥 위에 떠서 빙글빙글)
 const KEYSPR = mk(16, 16, p => { const o = '#8a5a00', y = '#ffd23a', l = '#fff3a0'; p(1, 2, 6, 1, o); p(1, 7, 6, 1, o); p(0, 3, 1, 4, o); p(7, 3, 1, 4, o); p(1, 3, 6, 4, y); p(3, 4, 2, 2, '#00000000'); p(2, 3, 2, 1, l); p(8, 4, 7, 2, y); p(8, 4, 7, 1, l); p(15, 4, 1, 2, o); p(11, 6, 2, 3, y); p(14, 6, 1, 3, y); p(8, 6, 7, 0, o); });
 const KEY_DAT = KEYSPR.getContext('2d').getImageData(0, 0, 16, 16).data;
+const COIN_DAT = COIN_IMG.getContext('2d').getImageData(0, 0, 12, 12).data;
 function PoliceStage3() {
   const S = {};
   const RW = 320, RH = 180;
@@ -81,7 +88,7 @@ function PoliceStage3() {
   const img = rg.createImageData(RW, RH), buf = img.data, zb = new Float32Array(RW);
   const cone = new Float32Array(RW * RH);
   for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) { const dx = (x - RW / 2) / (RW * 0.5), dy = (y - RH * 0.52) / (RH * 0.7); cone[y * RW + x] = 0.07 + 1.15 * Math.max(0, 1 - (dx * dx + dy * dy)); }
-  let mz, map, TW, TH, px, py, pa, ta = 0, caught = 0, pol, mode = 'howto', modeT = 0, footT = 0, myFoot = 0, eye = 0, key = null, hasKey = false, keyMsg = 0, lockMsg = 0, lan = [], safeT = 0, safeMsg = 0, mapNo = 0; const SPEED = 2.3, SAFE_MAX = 60, FOG = 0.075;
+  let mz, map, TW, TH, px, py, pa, ta = 0, caught = 0, pol, mode = 'howto', modeT = 0, footT = 0, myFoot = 0, eye = 0, kz = [], nKey = 0, coins = [], LT = { on: true, tm: 6, tr: 0 }, darkMsg = 0, keyMsg = 0, lockMsg = 0, lan = [], safeT = 0, safeMsg = 0, mapNo = 0; const SPEED = 2.3, SAFE_MAX = 60, FOG = 0.075;
   // 경찰 스프라이트 텍스처
   const pc = mk(32, 48, (p, g) => { g.imageSmoothingEnabled = false; g.drawImage(SPR.police[0], 0, 0, 32, 48); });
   const pdat = pc.getContext('2d').getImageData(0, 0, 32, 48).data;
@@ -95,7 +102,8 @@ function PoliceStage3() {
     // 깜빡이는 랜턴: 길 위 칸에 흩어 배치
     // 랜턴: 출발점 → 탈출구로 가는 길을 따라 놓아 길 안내 (꺾이는 곳은 바깥쪽 구석, 곧은 길은 벽 쪽)
     // 열쇠: 출발점에서 충분히 먼 길 위 아무 칸에 무작위로 놓기 (매 판 다름)
-    { const cand = []; for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) if (map[y][x] === 0 && Math.hypot(x - 1, y - 1) > 6 && Math.hypot(x - (TW - 2), y - (TH - 2)) > 3) cand.push([x, y]); const [kx, ky] = cand[Math.floor(Math.random() * cand.length)]; key = { x: kx + 0.5, y: ky + 0.5 }; hasKey = false; }
+    { const cand = []; for (let y = 1; y < TH - 1; y++) for (let x = 1; x < TW - 1; x++) if (map[y][x] === 0 && Math.hypot(x - 1, y - 1) > 6 && Math.hypot(x - (TW - 2), y - (TH - 2)) > 3) cand.push([x, y]); kz = []; nKey = 0; let guard = 0; while (kz.length < 3 && guard++ < 500) { const [kx, ky] = cand[Math.floor(Math.random() * cand.length)]; if (kz.every(k => Math.hypot(k.x - kx, k.y - ky) > 5)) kz.push({ x: kx + 0.5, y: ky + 0.5, got: false }); }
+      coins = []; for (let i = 0; i < 6; i++) { const [cx, cy] = cand[Math.floor(Math.random() * cand.length)]; if (!kz.some(k => Math.floor(k.x) === cx && Math.floor(k.y) === cy)) coins.push({ x: cx + 0.5, y: cy + 0.5 }); } }
     lan = [];
     { const sx = 1, sy = 1, ex = TW - 2, ey = TH - 2, prev = new Map([[sx + ',' + sy, null]]), q = [[sx, sy]];
       while (q.length) { const [x, y] = q.shift(); if (x === ex && y === ey) break; for (const [dx, dy] of mz.D) { const nx = x + dx, ny = y + dy, kk = nx + ',' + ny; if (!prev.has(kk) && map[ny] && map[ny][nx] === 0) { prev.set(kk, [x, y]); q.push([nx, ny]); } } }
@@ -113,7 +121,7 @@ function PoliceStage3() {
   }
   function reset() { px = 1.5; py = 1.5; pa = 0; ta = 0; pol = { state: 'hidden', t: rnd(1.5, 4), x: 0, y: 0, tx: 0, ty: 0, path: 0, chase: 0 }; }
   // 탈출구는 열쇠가 있어야 열림
-  function tryExit() { if (mode !== 'play') return; if (hasKey) { mode = 'clear'; modeT = 0; SFX.clear(); } else if (lockMsg <= 0) { lockMsg = 2.2; SFX.bad(); } }
+  function tryExit() { if (mode !== 'play') return; if (nKey >= 3) { mode = 'clear'; modeT = 0; SFX.clear(); } else if (lockMsg <= 0) { lockMsg = 2.2; SFX.bad(); } }
   const inSafe = () => Math.hypot(px - 1.5, py - 1.5) < 1.2;
   const safeOn = () => safeT < SAFE_MAX;
   const wall = (x, y) => { const v = map[Math.floor(y)] && map[Math.floor(y)][Math.floor(x)]; return v === undefined ? 1 : v; };
@@ -159,20 +167,23 @@ function PoliceStage3() {
     }
     if (mode === 'play' && Math.hypot(px - (TW - 0.5), py - (TH - 1.5)) < 1.0) tryExit();
     // 열쇠 줍기
-    if (key && !hasKey && Math.hypot(px - key.x, py - key.y) < 0.55) { hasKey = true; keyMsg = 2.8; lockMsg = 0; SFX.ok(); setTimeout(() => SFX.clear(), 120); }
+    for (const k of kz) if (!k.got && Math.hypot(px - k.x, py - k.y) < 0.55) { k.got = true; nKey++; keyMsg = 2.8; lockMsg = 0; SFX.ok(); setTimeout(() => SFX.clear(), 120); }
+    for (let i = coins.length - 1; i >= 0; i--) if (Math.hypot(px - coins[i].x, py - coins[i].y) < 0.5) { coins.splice(i, 1); addCoin(1, W / 2, H / 2 + 60); }
     if (keyMsg > 0) keyMsg -= dt; if (lockMsg > 0) lockMsg -= dt;
     // 랜턴 깜빡임
-    // 5~7초마다 꺼졌다 켜졌다를 반복, 바뀔 때는 몇 번 깜빡임
+    // 맵의 모든 랜턴이 함께 5~7초마다 꺼졌다 켜졌다 (바뀔 때 몇 번 깜빡임)
+    LT.tm -= dt; if (LT.tm <= 0) { LT.on = !LT.on; LT.tm = rnd(5, 7); LT.tr = 0.9; if (!LT.on) darkMsg = 2.2; } if (LT.tr > 0) LT.tr -= dt;
+    const dark = !LT.on && LT.tr <= 0; // 완전히 꺼져 있는 동안: 경찰이 플레이어를 감지하지 못함
+    if (darkMsg > 0) darkMsg -= dt;
     for (const o of lan) {
-      o.tm -= dt; if (o.tm <= 0) { o.on = !o.on; o.tm = rnd(5, 7); o.tr = 0.9; }
-      if (o.tr > 0) { o.tr -= dt; o.b = ((o.tr * 12) | 0) % 2 ? 1 : 0.08; }
-      else o.b = o.on ? 0.92 + 0.08 * Math.sin(S.t * 6 + o.x) : 0.04;
+      if (LT.tr > 0) o.b = ((LT.tr * 12) | 0) % 2 ? 1 : 0.08; else o.b = LT.on ? 0.92 + 0.08 * Math.sin(S.t * 6 + o.x) : 0.04;
     }
     // 안전지대: 시작 지점에 머문 시간이 누적 1분을 넘으면 비활성화되고 경찰이 위치를 감지
     const here = inSafe();
     if (here && safeOn()) { safeT += dt; if (!safeOn()) { safeMsg = 3; SFX.bad(); } }
     if (safeMsg > 0) safeMsg -= dt;
-    if (here && !safeOn()) { if (pol.state === 'hidden') spawnPolice(); pol.state = 'chase'; pol.chase = Math.max(pol.chase, 3); }
+    if (here && !safeOn() && !dark) { if (pol.state === 'hidden') spawnPolice(); pol.state = 'chase'; pol.chase = Math.max(pol.chase, 3); }
+    if (dark && pol.state === 'chase') { pol.state = 'wander'; pol.tx = Math.floor(pol.x); pol.ty = Math.floor(pol.y); }
     // 경찰
     if (pol.state === 'hidden') { pol.t -= dt; if (pol.t <= 0) spawnPolice(); }
     else {
@@ -183,13 +194,13 @@ function PoliceStage3() {
           const o = ops.length ? ops[Math.floor(Math.random() * ops.length)] : [pol.lx, pol.ly];
           pol.lx = pol.tx; pol.ly = pol.ty; pol.tx = o[0]; pol.ty = o[1];
         }
-        if (!(here && safeOn()) && (dist < 2.5 || (dist < 6 && los(pol.x, pol.y, px, py)))) { pol.state = 'chase'; pol.chase = rnd(5, 10); }
+        if (!dark && !(here && safeOn()) && (dist < 2.5 || (dist < 6 && los(pol.x, pol.y, px, py)))) { pol.state = 'chase'; pol.chase = rnd(5, 10); }
       } else if (pol.state === 'chase') {
         pol.chase -= dt; if (here && safeOn()) { pol.state = 'wander'; pol.tx = Math.floor(pol.x); pol.ty = Math.floor(pol.y); }
         if (movePolice(dt, SPEED)) { const r = bfs(pol.tx, pol.ty, Math.floor(px), Math.floor(py)); if (r) { pol.tx = r.next[0]; pol.ty = r.next[1]; } }
         if (pol.chase <= 0) { pol.state = 'hidden'; pol.t = rnd(1, 4); }
       }
-      if (pol.state !== 'hidden' && dist < 0.5 && !(here && safeOn())) { mode = 'caught'; modeT = 0; caught++; SFX.hit(); SFX.bad(); }
+      if (pol.state !== 'hidden' && dist < 0.5 && !dark && !(here && safeOn())) { mode = 'caught'; modeT = 0; caught++; SFX.hit(); SFX.bad(); }
       footT += dt; const fi = pol.state === 'chase' ? 0.32 : 0.5;
       if (footT > fi && pol.state !== 'hidden') { footT = 0; SFX.foot(clamp(0.5 - dist * 0.05, 0.02, 0.5)); }
     }
@@ -233,10 +244,10 @@ function PoliceStage3() {
       const pd = Math.max(0.05, side === 0 ? sdx - ddx : sdy - ddy); zb[x] = pd;
       let wx = side === 0 ? py + pd * ry : px + pd * rx; wx -= Math.floor(wx);
       const tx = Math.floor(wx * 32) & 31, lh = RH / pd, bot = RH / 2 + lh / 2, top = RH / 2 - lh * 1.1;
-      const tex = hit === 2 ? TEX_GATE : TEX_HEDGE, fd = 1 / (1 + pd * pd * FOG), sh = side ? 0.75 : 1;
+      const tex = hit === 2 ? TEX_GATE_N[Math.min(3, nKey)] : TEX_HEDGE, fd = 1 / (1 + pd * pd * FOG), sh = side ? 0.75 : 1;
       const hx = side === 0 ? mx + (stx < 0 ? 1 : 0) : px + pd * rx, hy = side === 1 ? my + (sty < 0 ? 1 : 0) : py + pd * ry, wl = lampAt(hx, hy);
       for (let y = Math.max(0, Math.floor(top)); y < Math.min(RH, Math.ceil(bot)); y++) {
-        const v = (y - top) / lh, ty = Math.floor(v * 32) & 31, ti = (ty * 32 + tx) * 3, i = (y * RW + x) * 4;
+        const v = (y - top) / lh, ty = Math.floor((hit === 2 ? v / 2.1 : v) * 32) & 31, ti = (ty * 32 + tx) * 3, i = (y * RW + x) * 4;
         let l = hit === 2 ? Math.max(0.55, cone[y * RW + x] * fd) : cone[y * RW + x] * fd * sh * flick;
         const edge = v < 0.08 ? 0.6 : 1;
         const lw = wl * (0.5 + v * 0.6);
@@ -260,18 +271,19 @@ function PoliceStage3() {
         }
       }
     }
-    // 열쇠 스프라이트 (떠 있으면서 빙글빙글, 반짝임)
-    if (key && !hasKey) {
-      const sx = key.x - px, sy = key.y - py, inv = 1 / (plX * dirY - dirX * plY), tX = inv * (dirY * sx - dirX * sy), tY = inv * (-plY * sx + plX * sy);
-      if (tY > 0.15) {
-        const spin = Math.abs(Math.cos(S.t * 2.5)) * 0.85 + 0.15, scx = RW / 2 * (1 + tX / tY), h = RH / tY * 0.32, w = h * spin, fl = Math.sin(S.t * 3) * 0.06;
-        const y0 = RH / 2 + RH / tY * (0.3 + fl) - h, x0 = scx - w / 2, gl = 0.85 + Math.sin(S.t * 6) * 0.15;
-        for (let x = Math.max(0, Math.floor(x0)); x < Math.min(RW, x0 + w); x++) {
-          if (tY >= zb[x]) continue; const tx = Math.floor((x - x0) / w * 16);
-          for (let y = Math.max(0, Math.floor(y0)); y < Math.min(RH, y0 + h); y++) { const ty = Math.floor((y - y0) / h * 16), si = (ty * 16 + tx) * 4; if (KEY_DAT[si + 3] < 128) continue; const i = (y * RW + x) * 4; buf[i] = Math.min(255, KEY_DAT[si] * gl + 20); buf[i + 1] = Math.min(255, KEY_DAT[si + 1] * gl + 15); buf[i + 2] = KEY_DAT[si + 2] * gl; }
-        }
+    // 열쇠·코인 스프라이트 (떠 있으면서 빙글빙글, 반짝임)
+    const bill = (o, DAT, tw, th, hs, base) => {
+      const sx = o.x - px, sy = o.y - py, inv = 1 / (plX * dirY - dirX * plY), tX = inv * (dirY * sx - dirX * sy), tY = inv * (-plY * sx + plX * sy);
+      if (tY <= 0.15) return;
+      const spin = Math.abs(Math.cos(S.t * 2.5 + o.x)) * 0.85 + 0.15, scx = RW / 2 * (1 + tX / tY), h = RH / tY * hs, w = h * tw / th * spin, fl = Math.sin(S.t * 3 + o.y) * 0.06;
+      const y0 = RH / 2 + RH / tY * (base + fl) - h, x0 = scx - w / 2, gl = 0.85 + Math.sin(S.t * 6) * 0.15;
+      for (let x = Math.max(0, Math.floor(x0)); x < Math.min(RW, x0 + w); x++) {
+        if (tY >= zb[x]) continue; const tx = Math.min(tw - 1, Math.floor((x - x0) / w * tw));
+        for (let y = Math.max(0, Math.floor(y0)); y < Math.min(RH, y0 + h); y++) { const ty = Math.min(th - 1, Math.floor((y - y0) / h * th)), si = (ty * tw + tx) * 4; if (DAT[si + 3] < 128) continue; const i = (y * RW + x) * 4; buf[i] = Math.min(255, DAT[si] * gl + 20); buf[i + 1] = Math.min(255, DAT[si + 1] * gl + 15); buf[i + 2] = DAT[si + 2] * gl; }
       }
-    }
+    };
+    for (const k of kz) if (!k.got) bill(k, KEY_DAT, 16, 16, 0.32, 0.3);
+    for (const c of coins) bill(c, COIN_DAT, 12, 12, 0.18, 0.4);
     // 랜턴 스프라이트
     const ld = LANTERN_DAT;
     for (const o of lan) {
@@ -318,26 +330,27 @@ function PoliceStage3() {
       { const cs = 7, mw = TW * cs, mh = TH * cs, mx = W - 14 - mw, my = 60; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(mx - 4, my - 4, mw + 8, mh + 8); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1.5; ctx.strokeRect(mx - 4, my - 4, mw + 8, mh + 8);
         for (let y = 0; y < TH; y++) for (let x = 0; x < TW; x++) { const v = map[y][x]; ctx.fillStyle = v === 2 ? '#ffd27a' : v ? 'rgba(40,90,50,.9)' : 'rgba(200,210,190,.35)'; ctx.fillRect(mx + x * cs, my + y * cs, cs, cs); }
         if (safeOn()) { ctx.fillStyle = 'rgba(80,170,255,.5)'; ctx.fillRect(mx + cs, my + cs, cs, cs); }
-        if (key && !hasKey) { ctx.fillStyle = (S.t * 3 | 0) % 2 ? '#ffd23a' : '#fff3a0'; ctx.beginPath(); ctx.arc(mx + key.x * cs, my + key.y * cs, 3, 0, 7); ctx.fill(); }
+        for (const k of kz) if (!k.got) { ctx.fillStyle = (S.t * 3 | 0) % 2 ? '#ffd23a' : '#fff3a0'; ctx.beginPath(); ctx.arc(mx + k.x * cs, my + k.y * cs, 3, 0, 7); ctx.fill(); }
         if (pol.state !== 'hidden') { const qx = mx + pol.x * cs, qy = my + pol.y * cs, pl = (S.t * 4 | 0) % 2; ctx.fillStyle = pol.state === 'chase' ? (pl ? '#ff2a2a' : '#ffffff') : '#4a8aff'; ctx.beginPath(); ctx.arc(qx, qy, 3.6, 0, 7); ctx.fill(); ctx.strokeStyle = '#000'; ctx.lineWidth = 1; ctx.stroke(); }
         const ax = mx + px * cs, ay = my + py * cs; ctx.save(); ctx.translate(ax, ay); ctx.rotate(pa); ctx.fillStyle = '#ff5050'; ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3.5, -3.5); ctx.lineTo(-1.5, 0); ctx.lineTo(-3.5, 3.5); ctx.closePath(); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
         T('지도', mx + mw / 2 - 30, my + mh + 14, 14, '#ddd', 'center'); ctx.fillStyle = '#4a8aff'; ctx.beginPath(); ctx.arc(mx + mw / 2 + 4, my + mh + 14, 4, 0, 7); ctx.fill(); T('경찰', mx + mw / 2 + 24, my + mh + 14, 14, '#ddd', 'center'); }
       if (safeMsg > 0) T('안전지대가 사라졌어요! 경찰이 위치를 알아챘어요!', W / 2, 140, 30, '#ff8a8a', 'center', FONT_UI, '#000');
-      box(268, 50, 170, 34, hasKey ? 'rgba(90,70,0,.85)' : 'rgba(20,20,30,.75)', hasKey ? '#ffd23a' : '#888', 2); ctx.imageSmoothingEnabled = false; ctx.globalAlpha = hasKey ? 1 : 0.35; ctx.drawImage(KEYSPR, 276, 52, 30, 30); ctx.globalAlpha = 1; T(hasKey ? '열쇠 있음' : '열쇠 없음', 368, 68, 19, hasKey ? '#ffe680' : '#bbb', 'center');
-      if (keyMsg > 0) { ctx.globalAlpha = Math.min(1, keyMsg); T('열쇠를 획득했다!', W / 2, 200, 44, '#ffd23a', 'center', FONT_UI, '#000'); T('이제 탈출구를 열 수 있어요', W / 2, 248, 24, '#fff', 'center', FONT_UI, '#000'); ctx.globalAlpha = 1; }
-      if (lockMsg > 0 && keyMsg <= 0) { ctx.globalAlpha = Math.min(1, lockMsg); T('탈출구가 잠겨 있어요!', W / 2, 200, 40, '#ff8a8a', 'center', FONT_UI, '#000'); T('미로 어딘가에 있는 열쇠를 찾아오세요', W / 2, 246, 24, '#fff', 'center', FONT_UI, '#000'); ctx.globalAlpha = 1; } }
+      box(268, 50, 170, 34, nKey >= 3 ? 'rgba(90,70,0,.85)' : 'rgba(20,20,30,.75)', nKey >= 3 ? '#ffd23a' : '#aaa', 2); ctx.imageSmoothingEnabled = false; for (let i = 0; i < 3; i++) { ctx.globalAlpha = i < nKey ? 1 : 0.28; ctx.drawImage(KEYSPR, 274 + i * 26, 54, 26, 26); } ctx.globalAlpha = 1; T(nKey + ' / 3', 400, 68, 20, nKey >= 3 ? '#ffe680' : '#ddd', 'center');
+      if (keyMsg > 0) { ctx.globalAlpha = Math.min(1, keyMsg); T('열쇠를 획득했다! (' + nKey + ' / 3)', W / 2, 200, 44, '#ffd23a', 'center', FONT_UI, '#000'); T(nKey >= 3 ? '열쇠 3개를 모두 모았어요! 이제 탈출구의 자물쇠를 열 수 있어요' : '남은 열쇠 ' + (3 - nKey) + '개를 더 찾아야 해요', W / 2, 248, 24, '#fff', 'center', FONT_UI, '#000'); ctx.globalAlpha = 1; }
+      if (lockMsg > 0 && keyMsg <= 0) { ctx.globalAlpha = Math.min(1, lockMsg); T('탈출구에 자물쇠 3개가 걸려 있어요!', W / 2, 200, 40, '#ff8a8a', 'center', FONT_UI, '#000'); T('미로 곳곳의 열쇠 3개를 모두 찾아오세요 (지금 ' + nKey + ' / 3)', W / 2, 246, 24, '#fff', 'center', FONT_UI, '#000'); ctx.globalAlpha = 1; } }
+    if (mode !== 'howto') { const dk = !LT.on && LT.tr <= 0; if (dk) { box(W / 2 - 230, H - 92, 460, 34, 'rgba(0,0,40,.8)', '#7ab0ff', 2); T('랜턴이 꺼졌어요 · 지금은 경찰이 나를 찾지 못해요!', W / 2, H - 74, 19, '#cfe0ff', 'center'); } drawWallet(); }
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,0,.75)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 340, 70, 680, 400, '#14141c', '#8a1a1a', 6);
       T('3 스테이지 · 어둠의 미로 정원', W / 2, 115, 38, '#ff6a6a', 'center');
       [['W', '앞으로 이동 (누르고 있으면 계속, 떼면 멈춤)'], ['S', '뒤로 이동 (앞보다 조금 느림)'], ['A / D', '왼쪽 / 오른쪽으로 90도 회전']].forEach((s, i) => { box(W / 2 - 290, 140 + i * 62, 100, 50, '#2a0a0a', '#ff6a6a', 3); T(s[0], W / 2 - 240, 166 + i * 62, 28, '#ff9a9a', 'center'); T(s[1], W / 2 - 170, 166 + i * 62, 22, '#eee', 'left', FONT_TX); });
-      T('랜턴을 따라가세요. 랜턴이 빛나는 탈출구까지 길을 안내해요!', W / 2, 340, 22, '#ffd27a', 'center', FONT_TX); T('미로 어딘가의 열쇠를 찾아야 탈출구를 열 수 있어요! 화면 위에 경찰 아이콘이 보이면 경찰이 가까이 있어요.', W / 2, 370, 18, '#ddd', 'center', FONT_TX); T('시작 지점은 안전지대(누적 1분 지나면 사라짐) · 경찰에게 5번 잡히면 실패!', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
+      T('랜턴을 따라가세요. 랜턴이 빛나는 탈출구까지 길을 안내해요!', W / 2, 340, 22, '#ffd27a', 'center', FONT_TX); T('열쇠 3개를 모아야 탈출구 자물쇠가 열려요! 랜턴이 꺼진 동안은 경찰이 나를 못 찾아요.', W / 2, 370, 18, '#ddd', 'center', FONT_TX); T('시작 지점은 안전지대(누적 1분 지나면 사라짐) · 경찰에게 5번 잡히면 실패!', W / 2, 398, 19, '#ff9a9a', 'center', FONT_TX);
       if ((S.t * 2 | 0) % 2) T('스페이스 또는 클릭으로 시작 ▶', W / 2, 440, 24, '#fff', 'center');
     }
     if (mode === 'caught') { ctx.fillStyle = 'rgba(160,0,0,.6)'; ctx.fillRect(0, 0, W, H); T('붙잡혔다!', W / 2, 230, 70, '#fff', 'center', FONT_UI, '#000'); T(caught >= 5 ? '5번 잡혔어요...' : '미로 입구에서 다시 시작해요 (잡힌 횟수 ' + caught + ' / 5)', W / 2, 300, 28, '#fff', 'center', FONT_UI, '#000'); }
     if (mode === 'clear') { ctx.fillStyle = 'rgba(255,240,180,' + Math.min(1, modeT) + ')'; ctx.fillRect(0, 0, W, H); T('탈출구 발견!', W / 2, 260, 64, '#3a2a1a', 'center'); }
   };
-  S.dbg = () => ({ px, py, pa, map, pol, lan, key, hasKey }); S.tp = (x, y, a) => { px = x; py = y; pa = a; ta = a; }; window._m = S;
+  S.dbg = () => ({ px, py, pa, map, pol, lan, kz, nKey, coins, LT }); S.tp = (x, y, a) => { px = x; py = y; pa = a; ta = a; }; window._m = S;
   return Pausable(S, () => mode === 'play');
 }
 function PoliceEnding() {

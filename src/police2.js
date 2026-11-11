@@ -47,6 +47,7 @@ function PoliceStage2() {
   function spawn() {
     const n = dodged >= 2 && Math.random() < 0.55 ? 2 : 1; const ls = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, n);
     ls.forEach(l => objs.push({ l, z: 0, dur: Math.max(0.7, 1.15 - dodged * 0.05), k: irnd(0, 3), rot: 0 }));
+    if (Math.random() < 0.22) { const free = [0, 1, 2].filter(l => !ls.includes(l)); if (free.length) objs.push({ l: free[Math.floor(Math.random() * free.length)], z: 0, dur: 1.3, k: 0, rot: 0, coin: true }); } // 가끔 코인 (그 칸에 서 있으면 획득)
     windup = 0.25;
   }
   S.key = k => {
@@ -65,6 +66,7 @@ function PoliceStage2() {
         o.z += dt / o.dur; o.rot += dt * 10;
         if (o.z >= 1 && !o.done) {
           o.done = true;
+          if (o.coin) { if (o.l === lane) addCoin(1, LX[lane] * 2, 380); continue; }
           if (o.l === lane) { hearts--; shake = 0.5; flash = 0.3; SFX.hit(); if (hearts <= 0) { mode = 'over'; go(GameOver('AI를 체포하지 못했어요.')); } }
           else { dodged++; SFX.ok(); if (dodged >= GOAL) { mode = 'clear'; endT = 0; SFX.clear(); objs = []; break; } }
         }
@@ -92,11 +94,11 @@ function PoliceStage2() {
     R(L, 236, 196, 8, 74, '#2a50a8');
     for (let i = 0; i < 3; i++) R(L, LX[i] - 18, 236, 36, 2, '#ffffff40');
     // 경고 표시
-    for (const o of objs) if (!o.done && o.z > 0.45) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
+    for (const o of objs) if (!o.done && !o.coin && o.z > 0.45) { const a = (o.z * 10 | 0) % 2; R(L, LX[o.l] - 14, 250, 28, 6, a ? '#ff4a4a' : '#ffd23a'); }
     // 날아오는 물건
     for (const o of objs) {
       const z = o.z, x = lerp(240, LX[o.l], z), y = lerp(by, 225, z) - Math.sin(Math.min(1, z) * Math.PI) * 40, s = lerp(0.6, 3, Math.min(z, 1.2));
-      L.save(); L.translate(x, y); L.rotate(o.rot); L.drawImage(ITEMS[o.k], -5 * s, -5 * s, 10 * s, 10 * s); L.restore();
+      L.save(); L.translate(x, y); if (o.coin) { L.scale(Math.abs(Math.cos(o.rot * 0.5)) + 0.15, 1); L.drawImage(COIN_IMG, -5 * s, -5 * s, 10 * s, 10 * s); } else { L.rotate(o.rot); L.drawImage(ITEMS[o.k], -5 * s, -5 * s, 10 * s, 10 * s); } L.restore();
     }
     // 경찰
     spr(L, SPR.police[(S.t * 3 | 0) % 2], px - 16, 196, false, 2);
@@ -105,7 +107,7 @@ function PoliceStage2() {
     if (flash > 0) { ctx.fillStyle = 'rgba(255,0,0,' + flash + ')'; ctx.fillRect(0, 0, W, H); }
     drawHearts(hearts, 3, shake > 0);
     T('피한 횟수  ' + dodged + ' / ' + GOAL, W / 2, 32, 32, '#fff', 'center', FONT_UI, '#000');
-    T('A: 왼쪽으로 한 칸     D: 오른쪽으로 한 칸', W / 2, H - 22, 22, '#fff', 'center', FONT_UI, '#000');
+    T('A: 왼쪽으로 한 칸     D: 오른쪽으로 한 칸', W / 2, H - 22, 22, '#fff', 'center', FONT_UI, '#000'); drawWallet();
     if (mode === 'howto') {
       ctx.fillStyle = 'rgba(0,0,30,.7)'; ctx.fillRect(0, 0, W, H);
       box(W / 2 - 330, 90, 660, 360, '#fff8e6', '#3a2a1a', 6);
